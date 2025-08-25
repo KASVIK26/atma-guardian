@@ -7,32 +7,23 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { authHelpers } from "@/lib/supabase";
+import type { SignupFormData } from "@/types/database";
 import { 
   ArrowLeft, 
   ArrowRight, 
-  School, 
   User, 
-  Mail, 
-  Lock, 
   Building, 
-  MapPin, 
-  Upload,
-  CheckCircle2,
-  Users,
-  Calendar,
-  BookOpen,
-  GraduationCap
+  CheckCircle2
 } from "lucide-react";
 
+interface FormData extends SignupFormData {}
+
 const STEPS = [
-  { id: 1, title: "Admin Details", icon: User },
-  { id: 2, title: "University Info", icon: Building },
-  { id: 3, title: "Academic Structure", icon: GraduationCap },
-  { id: 4, title: "Data Import", icon: Upload },
-  { id: 5, title: "Confirmation", icon: CheckCircle2 }
+  { id: 1, title: "Admin Account", icon: User, description: "Create your admin account" },
+  { id: 2, title: "University Details", icon: Building, description: "Setup university information" },
+  { id: 3, title: "Complete Setup", icon: CheckCircle2, description: "Finalize your account" }
 ];
 
 export default function Signup() {
@@ -40,11 +31,49 @@ export default function Signup() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
+  // Form state
+  const [formData, setFormData] = useState<FormData>({
+    // Admin details
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    // University details
+    universityName: '',
+    universityCode: '',
+    location: '',
+    contactEmail: '',
+    contactPhone: '',
+    timezone: 'Asia/Kolkata'
+  });
+
   const progress = ((currentStep - 1) / (STEPS.length - 1)) * 100;
 
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const validateStep = (step: number) => {
+    switch (step) {
+      case 1:
+        return formData.firstName && formData.lastName && formData.email && 
+               formData.password && formData.password === formData.confirmPassword;
+      case 2:
+        return formData.universityName && formData.universityCode && formData.location;
+      default:
+        return true;
+    }
+  };
+
   const handleNext = () => {
-    if (currentStep < STEPS.length) {
+    if (validateStep(currentStep) && currentStep < STEPS.length) {
       setCurrentStep(currentStep + 1);
+    } else if (!validateStep(currentStep)) {
+      toast.error("Please fill in all required fields");
     }
   };
 
@@ -55,12 +84,63 @@ export default function Signup() {
   };
 
   const handleSubmit = async () => {
+    if (!validateStep(2)) {
+      toast.error("Please complete all required fields");
+      return;
+    }
+
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      console.log('Starting signup process...');
+      // Extract signup data (exclude confirmPassword)
+      const { confirmPassword, ...signupData } = formData;
+      
+      console.log('Signup data prepared:', { ...signupData, password: '[HIDDEN]' });
+      
+      const result = await authHelpers.registerAdmin(signupData);
+      
+      if (result) {
+        console.log('Signup successful:', { userId: result.user?.id, universityId: result.university?.id });
+        toast.success("Account created successfully! Please check your email to verify your account.");
+        
+        // Navigate to a confirmation page or dashboard
+        if (result.session) {
+          navigate("/dashboard");
+        } else {
+          toast.info("Please check your email to verify your account before signing in.");
+          navigate("/auth/login");
+        }
+      }
+    } catch (error: any) {
+      console.error('Signup error details:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        error: error
+      });
+      
+      let errorMessage = "Failed to create account. Please try again.";
+      
+      // Handle specific error cases
+      if (error.message?.includes('duplicate key') || error.code === '23505') {
+        errorMessage = "An account with this email already exists.";
+      } else if (error.message?.includes('invalid input syntax')) {
+        errorMessage = "Please check your input and try again.";
+      } else if (error.message?.includes('permission denied') || error.code === '42501') {
+        errorMessage = "Permission denied. Please contact support.";
+      } else if (error.message?.includes('row-level security')) {
+        errorMessage = "Database configuration issue. Please contact support.";
+      } else if (error.message?.includes('network') || error.code === 'NETWORK_ERROR') {
+        errorMessage = "Network error. Please check your connection and try again.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
+    } finally {
       setIsLoading(false);
-      toast.success("Account created successfully!");
-      navigate("/dashboard");
-    }, 2000);
+    }
   };
 
   const renderStepContent = () => {
@@ -74,28 +154,67 @@ export default function Signup() {
             exit={{ opacity: 0, x: -20 }}
             className="space-y-4"
           >
+            <div className="text-center mb-6">
+              <h3 className="text-lg font-semibold mb-2">Create Your Admin Account</h3>
+              <p className="text-sm text-muted-foreground">
+                Set up your administrator account to manage your university's attendance system
+              </p>
+            </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="firstName">First Name</Label>
-                <Input id="firstName" placeholder="Sarah" />
+                <Label htmlFor="firstName">First Name *</Label>
+                <Input 
+                  id="firstName" 
+                  placeholder="Sarah" 
+                  value={formData.firstName}
+                  onChange={(e) => handleInputChange('firstName', e.target.value)}
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Last Name</Label>
-                <Input id="lastName" placeholder="Johnson" />
+                <Label htmlFor="lastName">Last Name *</Label>
+                <Input 
+                  id="lastName" 
+                  placeholder="Johnson" 
+                  value={formData.lastName}
+                  onChange={(e) => handleInputChange('lastName', e.target.value)}
+                />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <Input id="email" type="email" placeholder="admin@university.edu" />
+              <Label htmlFor="email">Email Address *</Label>
+              <Input 
+                id="email" 
+                type="email" 
+                placeholder="admin@university.edu" 
+                value={formData.email}
+                onChange={(e) => handleInputChange('email', e.target.value)}
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" placeholder="Create a strong password" />
+              <Label htmlFor="password">Password *</Label>
+              <Input 
+                id="password" 
+                type="password" 
+                placeholder="Create a strong password" 
+                value={formData.password}
+                onChange={(e) => handleInputChange('password', e.target.value)}
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input id="confirmPassword" type="password" placeholder="Confirm your password" />
+              <Label htmlFor="confirmPassword">Confirm Password *</Label>
+              <Input 
+                id="confirmPassword" 
+                type="password" 
+                placeholder="Confirm your password" 
+                value={formData.confirmPassword}
+                onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+              />
             </div>
+            
+            {formData.password && formData.confirmPassword && formData.password !== formData.confirmPassword && (
+              <p className="text-sm text-destructive">Passwords do not match</p>
+            )}
           </motion.div>
         );
 
@@ -108,33 +227,73 @@ export default function Signup() {
             exit={{ opacity: 0, x: -20 }}
             className="space-y-4"
           >
+            <div className="text-center mb-6">
+              <h3 className="text-lg font-semibold mb-2">University Information</h3>
+              <p className="text-sm text-muted-foreground">
+                Provide your university details to set up the attendance system
+              </p>
+            </div>
+            
             <div className="space-y-2">
-              <Label htmlFor="universityName">University Name</Label>
-              <Input id="universityName" placeholder="Stanford University" />
+              <Label htmlFor="universityName">University Name *</Label>
+              <Input 
+                id="universityName" 
+                placeholder="Stanford University" 
+                value={formData.universityName}
+                onChange={(e) => handleInputChange('universityName', e.target.value)}
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="address">Address</Label>
-              <Textarea id="address" placeholder="450 Serra Mall, Stanford, CA 94305" />
+              <Label htmlFor="universityCode">University Code *</Label>
+              <Input 
+                id="universityCode" 
+                placeholder="STAN_UNIV" 
+                value={formData.universityCode}
+                onChange={(e) => handleInputChange('universityCode', e.target.value.toUpperCase())}
+              />
+              <p className="text-xs text-muted-foreground">
+                Unique identifier for your university (e.g., STAN_UNIV, MIT, HARVARD)
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="location">Location *</Label>
+              <Input 
+                id="location" 
+                placeholder="Stanford, California, USA" 
+                value={formData.location}
+                onChange={(e) => handleInputChange('location', e.target.value)}
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="city">City</Label>
-                <Input id="city" placeholder="Stanford" />
+                <Label htmlFor="contactEmail">Contact Email</Label>
+                <Input 
+                  id="contactEmail" 
+                  type="email" 
+                  placeholder="info@university.edu" 
+                  value={formData.contactEmail}
+                  onChange={(e) => handleInputChange('contactEmail', e.target.value)}
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="state">State/Province</Label>
-                <Input id="state" placeholder="California" />
+                <Label htmlFor="contactPhone">Contact Phone</Label>
+                <Input 
+                  id="contactPhone" 
+                  placeholder="+1 (650) 123-4567" 
+                  value={formData.contactPhone}
+                  onChange={(e) => handleInputChange('contactPhone', e.target.value)}
+                />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="logo">University Logo</Label>
-              <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
-                <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <Button variant="outline">Upload Logo</Button>
-                <p className="text-xs text-muted-foreground mt-2">
-                  SVG, PNG or JPG (max 2MB)
-                </p>
-              </div>
+            
+            <div className="p-4 bg-muted/30 rounded-lg border">
+              <p className="text-sm text-muted-foreground">
+                💡 After account creation, you can:
+                <br />• Set up academic programs and courses
+                <br />• Add building and room information
+                <br />• Invite teachers and students via email
+                <br />• Configure geofencing and attendance settings
+              </p>
             </div>
           </motion.div>
         );
@@ -143,94 +302,6 @@ export default function Signup() {
         return (
           <motion.div
             key="step3"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="space-y-4"
-          >
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center">
-                <BookOpen className="w-5 h-5 mr-2 text-primary" />
-                Academic Programs
-              </h3>
-              <div className="space-y-2">
-                <Label>Programs (e.g., Engineering, Business, Medicine)</Label>
-                <Input placeholder="Computer Science, Business Administration, Medicine" />
-              </div>
-              <div className="space-y-2">
-                <Label>Branches (within programs)</Label>
-                <Input placeholder="Software Engineering, Data Science, AI/ML" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Years</Label>
-                  <Input placeholder="1, 2, 3, 4" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Sections</Label>
-                  <Input placeholder="A, B, C, D" />
-                </div>
-              </div>
-            </div>
-            <div className="p-4 bg-muted/30 rounded-lg">
-              <p className="text-sm text-muted-foreground">
-                💡 Don't worry, you can modify the academic structure later from the dashboard.
-              </p>
-            </div>
-          </motion.div>
-        );
-
-      case 4:
-        return (
-          <motion.div
-            key="step4"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="space-y-6"
-          >
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center">
-                <Users className="w-5 h-5 mr-2 text-primary" />
-                Import Students
-              </h3>
-              <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
-                <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <Button variant="outline">Upload Students CSV</Button>
-                <p className="text-xs text-muted-foreground mt-2">
-                  CSV with columns: Name, Email, Student ID, Program, Year, Section
-                </p>
-              </div>
-            </div>
-            
-            <Separator />
-            
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center">
-                <Calendar className="w-5 h-5 mr-2 text-primary" />
-                Import Timetable
-              </h3>
-              <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
-                <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <Button variant="outline">Upload Timetable CSV</Button>
-                <p className="text-xs text-muted-foreground mt-2">
-                  CSV with columns: Day, Time, Subject, Teacher, Room, Section
-                </p>
-              </div>
-            </div>
-            
-            <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
-              <p className="text-sm text-primary">
-                ⚡ You can skip this step and add students/timetables manually later.
-              </p>
-            </div>
-          </motion.div>
-        );
-
-      case 5:
-        return (
-          <motion.div
-            key="step5"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
@@ -240,7 +311,7 @@ export default function Signup() {
               <CheckCircle2 className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h3 className="text-2xl font-bold mb-2">You're all set!</h3>
+              <h3 className="text-2xl font-bold mb-2">Ready to Launch!</h3>
               <p className="text-muted-foreground">
                 Review your information and complete the setup to start using ATMA.
               </p>
@@ -249,16 +320,30 @@ export default function Signup() {
             <div className="text-left space-y-4 bg-muted/30 p-4 rounded-lg">
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">Admin:</span>
-                <span className="text-sm font-medium">Dr. Sarah Johnson</span>
+                <span className="text-sm font-medium">{formData.firstName} {formData.lastName}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">University:</span>
-                <span className="text-sm font-medium">Stanford University</span>
+                <span className="text-sm font-medium">{formData.universityName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Code:</span>
+                <span className="text-sm font-medium">{formData.universityCode}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">Email:</span>
-                <span className="text-sm font-medium">admin@stanford.edu</span>
+                <span className="text-sm font-medium">{formData.email}</span>
               </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Location:</span>
+                <span className="text-sm font-medium">{formData.location}</span>
+              </div>
+            </div>
+            
+            <div className="p-4 bg-accent/10 rounded-lg border border-accent/20">
+              <p className="text-sm text-accent">
+                🎉 After setup, you'll be redirected to your dashboard where you can start configuring your attendance system!
+              </p>
             </div>
           </motion.div>
         );
@@ -347,14 +432,18 @@ export default function Signup() {
                 <Button 
                   onClick={handleSubmit}
                   disabled={isLoading}
-                  variant="glow"
+                  className="bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90"
                   size="lg"
                 >
                   {isLoading ? "Creating Account..." : "Complete Setup"}
                   <CheckCircle2 className="w-4 h-4 ml-2" />
                 </Button>
               ) : (
-                <Button onClick={handleNext} variant="glow">
+                <Button 
+                  onClick={handleNext} 
+                  disabled={!validateStep(currentStep)}
+                  className="bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90"
+                >
                   Next
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
