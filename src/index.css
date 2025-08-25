@@ -30,78 +30,78 @@
   }
 
   .dark {
-    /* ATMA Dark Theme */
-    --background: 224 71.4% 4.1%;
-    --foreground: 210 20% 98%;
+    /* ATMA Dark Theme - Based on Figma Midnight Shadow & The Basics */
+    --background: 0 0% 5.5%; /* #0E0E0E */
+    --foreground: 0 0% 95%; /* #F2F2F2 */
     
     /* Cards with subtle elevation */
-    --card: 224 71.4% 6.1%;
-    --card-foreground: 210 20% 98%;
-    --card-hover: 224 71.4% 8.1%;
+    --card: 0 0% 14.5%; /* #252525 */
+    --card-foreground: 0 0% 95%; /* #F2F2F2 */
+    --card-hover: 0 0% 29%; /* #4A4A4A */
     
     /* Popovers and dialogs */
-    --popover: 224 71.4% 6.1%;
-    --popover-foreground: 210 20% 98%;
+    --popover: 0 0% 14.5%; /* #252525 */
+    --popover-foreground: 0 0% 95%; /* #F2F2F2 */
     
-    /* Primary - Electric Blue */
-    --primary: 217 91% 60%;
-    --primary-glow: 217 91% 70%;
-    --primary-dark: 217 91% 45%;
-    --primary-foreground: 222.2 84% 4.9%;
+    /* Primary - Warm Red */
+    --primary: 0 73% 46%; /* #D41414 */
+    --primary-glow: 0 73% 60%; /* Lighter red */
+    --primary-dark: 0 73% 35%; /* Darker red */
+    --primary-foreground: 0 0% 95%; /* #F2F2F2 */
     
-    /* Secondary - Deep Purple */
-    --secondary: 263 70% 50%;
-    --secondary-glow: 263 70% 65%;
-    --secondary-foreground: 210 20% 98%;
+    /* Secondary - Orange */
+    --secondary: 20 90% 50%; /* #DC3C0C */
+    --secondary-glow: 20 90% 65%; /* Lighter orange */
+    --secondary-foreground: 0 0% 95%; /* #F2F2F2 */
     
-    /* Accent - Cyan */
-    --accent: 189 94% 57%;
-    --accent-glow: 189 94% 70%;
-    --accent-foreground: 222.2 84% 4.9%;
+    /* Accent - Warm Orange */
+    --accent: 32 95% 52%; /* #F2720C */
+    --accent-glow: 32 95% 65%; /* Lighter orange */
+    --accent-foreground: 0 0% 10%; /* Dark text on orange */
     
     /* Success - Green */
-    --success: 142 76% 36%;
-    --success-glow: 142 76% 50%;
-    --success-foreground: 210 20% 98%;
+    --success: 88 45% 55%; /* #B0D19A */
+    --success-glow: 88 45% 70%; 
+    --success-foreground: 0 0% 10%; /* Dark text on green */
     
-    /* Warning - Orange */
-    --warning: 32 95% 44%;
-    --warning-glow: 32 95% 60%;
-    --warning-foreground: 210 20% 98%;
+    /* Warning - Yellow */
+    --warning: 48 91% 51%; /* #F5BF0F */
+    --warning-glow: 48 91% 65%;
+    --warning-foreground: 0 0% 10%; /* Dark text on yellow */
     
-    /* Destructive - Red */
-    --destructive: 0 72.2% 50.6%;
-    --destructive-glow: 0 72.2% 65%;
-    --destructive-foreground: 210 20% 98%;
+    /* Destructive - Deep Red */
+    --destructive: 0 79% 63%; /* #F61C24 */
+    --destructive-glow: 0 79% 75%;
+    --destructive-foreground: 0 0% 95%; /* #F2F2F2 */
     
     /* Muted elements */
-    --muted: 215 27.9% 16.9%;
-    --muted-foreground: 217.9 10.6% 64.9%;
+    --muted: 0 0% 38%; /* #616161 */
+    --muted-foreground: 0 0% 61%; /* #9B9B9B */
     
     /* Borders and inputs */
-    --border: 215 27.9% 16.9%;
-    --input: 215 27.9% 16.9%;
-    --ring: 217 91% 60%;
+    --border: 0 0% 29%; /* #4A4A4A */
+    --input: 0 0% 29%; /* #4A4A4A */
+    --ring: 0 73% 46%; /* Same as primary */
     
     /* Sidebar specific */
-    --sidebar-background: 224 71.4% 4.1%;
-    --sidebar-foreground: 210 20% 98%;
-    --sidebar-primary: 217 91% 60%;
-    --sidebar-primary-foreground: 222.2 84% 4.9%;
-    --sidebar-accent: 224 71.4% 8.1%;
-    --sidebar-accent-foreground: 210 20% 98%;
-    --sidebar-border: 215 27.9% 16.9%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-background: 0 0% 5.5%; /* #0E0E0E */
+    --sidebar-foreground: 0 0% 95%; /* #F2F2F2 */
+    --sidebar-primary: 0 73% 46%; /* #D41414 */
+    --sidebar-primary-foreground: 0 0% 95%; /* #F2F2F2 */
+    --sidebar-accent: 0 0% 14.5%; /* #252525 */
+    --sidebar-accent-foreground: 0 0% 95%; /* #F2F2F2 */
+    --sidebar-border: 0 0% 29%; /* #4A4A4A */
+    --sidebar-ring: 0 73% 46%; /* Same as primary */
     
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%) 0%, hsl(263 70% 50%) 100%);
-    --gradient-hero: linear-gradient(135deg, hsl(224 71.4% 4.1%) 0%, hsl(215 27.9% 16.9%) 100%);
-    --gradient-card: linear-gradient(135deg, hsl(224 71.4% 6.1%) 0%, hsl(224 71.4% 8.1%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(0 73% 46%) 0%, hsl(20 90% 50%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(0 0% 5.5%) 0%, hsl(0 0% 14.5%) 100%);
+    --gradient-card: linear-gradient(135deg, hsl(0 0% 14.5%) 0%, hsl(0 0% 29%) 100%);
     
     /* Shadows */
-    --shadow-glow: 0 0 30px hsl(217 91% 60% / 0.3);
-    --shadow-card: 0 10px 30px -15px hsl(224 71.4% 4.1% / 0.5);
-    --shadow-elevated: 0 25px 50px -12px hsl(224 71.4% 4.1% / 0.7);
+    --shadow-glow: 0 0 30px hsl(0 73% 46% / 0.3);
+    --shadow-card: 0 10px 30px -15px hsl(0 0% 5.5% / 0.5);
+    --shadow-elevated: 0 25px 50px -12px hsl(0 0% 5.5% / 0.7);
   }
 }
 

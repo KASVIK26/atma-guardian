@@ -293,8 +293,15 @@ export default function Signup() {
 
         <Card className="bg-card/50 backdrop-blur-xl border-border/50">
           <CardHeader className="text-center space-y-4">
-            <div className="w-12 h-12 bg-gradient-primary rounded-xl mx-auto flex items-center justify-center">
-              <School className="h-6 w-6 text-white" />
+            <div className="flex items-center justify-center space-x-3">
+              <img 
+                src="/logo.png" 
+                alt="ATMA Logo" 
+                className="w-12 h-12"
+              />
+              <span className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                ATMA
+              </span>
             </div>
             <div>
               <CardTitle className="text-2xl font-bold">Create Your ATMA Account</CardTitle>
