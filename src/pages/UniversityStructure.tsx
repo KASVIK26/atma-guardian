@@ -174,7 +174,7 @@ export default function UniversityStructure() {
               </Button>
             )}
             
-            <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
               {icon}
             </div>
             

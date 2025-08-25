@@ -47,7 +47,7 @@ export function Navbar({ showProfileMenu = false, transparent = false }: NavbarP
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-3">
             <img 
-              src="/logo.png" 
+              src="/ATMA-LOGO.png" 
               alt="ATMA Logo" 
               className="w-8 h-8"
             />

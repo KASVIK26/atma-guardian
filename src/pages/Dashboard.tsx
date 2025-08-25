@@ -29,6 +29,33 @@ export default function Dashboard() {
     return "evening";
   });
 
+  // Function to get background gradient styles based on color
+  const getBackgroundStyle = (color: string) => {
+    const colorMap: Record<string, string> = {
+      primary: 'hsl(260 30% 35%)', // Deep purple
+      secondary: 'hsl(280 15% 50%)', // Purple-gray  
+      success: 'hsl(160 50% 45%)', // Deep emerald
+      accent: 'hsl(270 50% 60%)', // Bright purple
+      warning: 'hsl(45 85% 55%)', // Rich amber
+      destructive: 'hsl(0 65% 50%)' // Deep crimson
+    };
+    
+    const glowMap: Record<string, string> = {
+      primary: 'hsl(260 40% 55%)', // Lighter purple glow
+      secondary: 'hsl(280 20% 65%)', // Lighter purple-gray glow
+      success: 'hsl(160 60% 55%)', // Brighter emerald glow
+      accent: 'hsl(270 60% 75%)', // Lighter purple glow
+      warning: 'hsl(45 90% 65%)', // Lighter amber glow
+      destructive: 'hsl(0 70% 60%)' // Brighter red glow
+    };
+    
+    const baseColor = colorMap[color] || colorMap.primary;
+    const glowColor = glowMap[color] || glowMap.primary;
+    return {
+      background: `linear-gradient(135deg, ${baseColor}, ${glowColor})`
+    };
+  };
+
   const stats = [
     {
       title: "Total Students",
@@ -186,7 +213,10 @@ export default function Dashboard() {
                   <CardTitle className="text-sm font-medium text-muted-foreground">
                     {stat.title}
                   </CardTitle>
-                  <div className={`w-8 h-8 bg-gradient-to-br from-${stat.color} to-${stat.color}-glow rounded-md flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                  <div 
+                    className="w-8 h-8 rounded-md flex items-center justify-center group-hover:scale-110 transition-transform"
+                    style={getBackgroundStyle(stat.color)}
+                  >
                     <stat.icon className="h-4 w-4 text-white" />
                   </div>
                 </CardHeader>
@@ -229,7 +259,10 @@ export default function Dashboard() {
                       variant="outline"
                       className="h-auto p-4 justify-start hover:border-primary/50 group"
                     >
-                      <div className={`w-10 h-10 bg-gradient-to-br from-${action.color} to-${action.color}-glow rounded-lg flex items-center justify-center mr-3 group-hover:scale-110 transition-transform`}>
+                      <div 
+                        className="w-10 h-10 rounded-lg flex items-center justify-center mr-3 group-hover:scale-110 transition-transform"
+                        style={getBackgroundStyle(action.color)}
+                      >
                         <action.icon className="h-5 w-5 text-white" />
                       </div>
                       <div className="text-left">
@@ -271,7 +304,7 @@ export default function Dashboard() {
                       className="flex items-center justify-between p-4 border border-border/50 rounded-lg hover:border-primary/50 transition-colors"
                     >
                       <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center">
+                        <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
                           <BookOpen className="h-6 w-6 text-white" />
                         </div>
                         <div>

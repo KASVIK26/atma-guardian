@@ -70,7 +70,7 @@ export default function Welcome() {
           {[...Array(20)].map((_, i) => (
             <motion.div
               key={i}
-              className="absolute w-2 h-2 bg-primary-glow rounded-full opacity-20"
+              className="absolute w-2 h-2 bg-accent/30 rounded-full opacity-40"
               animate={{
                 y: [0, -100, 0],
                 opacity: [0.2, 0.8, 0.2],
@@ -100,7 +100,7 @@ export default function Welcome() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
           >
-            <Badge className="mb-6 bg-primary/20 text-primary-glow border-primary/30 px-4 py-2">
+            <Badge className="mb-6 bg-primary/30 text-accent border-accent/50 px-4 py-2 backdrop-blur-sm">
               🚀 Next-Generation Attendance System
             </Badge>
           </motion.div>
@@ -112,7 +112,7 @@ export default function Welcome() {
             transition={{ duration: 0.8, delay: 0.4 }}
           >
             Welcome to{" "}
-            <span className="bg-gradient-to-r from-primary-glow to-accent-glow bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-accent to-primary bg-clip-text text-transparent">
               ATMA
             </span>
           </motion.h1>
@@ -165,7 +165,7 @@ export default function Welcome() {
             className="text-center mb-16"
             {...fadeInUp}
           >
-            <h2 className="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            <h2 className="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
               Why Choose ATMA?
             </h2>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
@@ -201,7 +201,7 @@ export default function Welcome() {
                   variants={fadeInUp}
                   className="flex items-start space-x-4"
                 >
-                  <div className="flex-shrink-0 w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center">
+                  <div className="flex-shrink-0 w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
                     <feature.icon className="h-6 w-6 text-white" />
                   </div>
                   <div>
@@ -232,7 +232,7 @@ export default function Welcome() {
                 variants={fadeInUp}
                 className="text-center"
               >
-                <div className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent mb-2">
+                <div className="text-3xl md:text-4xl font-bold text-accent mb-2">
                   {stat.number}
                 </div>
                 <div className="text-muted-foreground">{stat.label}</div>
@@ -268,7 +268,7 @@ export default function Welcome() {
               <motion.div key={index} variants={fadeInUp}>
                 <Card className="h-full bg-gradient-card border-border/50 hover:border-primary/50 transition-all duration-300 group">
                   <CardContent className="p-6 text-center">
-                    <div className="w-16 h-16 bg-gradient-primary rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                    <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
                       <item.icon className="h-8 w-8 text-white" />
                     </div>
                     <h3 className="text-xl font-semibold mb-3">{item.title}</h3>

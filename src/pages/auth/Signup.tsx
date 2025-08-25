@@ -236,7 +236,7 @@ export default function Signup() {
             exit={{ opacity: 0, scale: 0.95 }}
             className="text-center space-y-6"
           >
-            <div className="w-16 h-16 bg-gradient-primary rounded-full mx-auto flex items-center justify-center">
+            <div className="w-16 h-16 bg-primary rounded-full mx-auto flex items-center justify-center">
               <CheckCircle2 className="w-8 h-8 text-white" />
             </div>
             <div>
@@ -295,11 +295,11 @@ export default function Signup() {
           <CardHeader className="text-center space-y-4">
             <div className="flex items-center justify-center space-x-3">
               <img 
-                src="/logo.png" 
+                src="/ATMA-LOGO.png" 
                 alt="ATMA Logo" 
                 className="w-12 h-12"
               />
-              <span className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              <span className="text-2xl font-bold bg-gradient-to-r from-accent to-primary bg-clip-text text-transparent">
                 ATMA
               </span>
             </div>
@@ -367,7 +367,7 @@ export default function Signup() {
           Already have an account?{" "}
           <Link 
             to="/auth/login" 
-            className="text-primary hover:text-primary-glow font-medium"
+            className="text-primary hover:text-accent font-medium"
           >
             Sign in here
           </Link>

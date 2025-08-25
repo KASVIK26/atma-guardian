@@ -62,11 +62,11 @@ export default function Login() {
           <CardHeader className="text-center space-y-2">
             <div className="flex items-center justify-center space-x-3 mb-4">
               <img 
-                src="/logo.png" 
+                src="/ATMA-LOGO.png" 
                 alt="ATMA Logo" 
                 className="w-12 h-12"
               />
-              <span className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              <span className="text-2xl font-bold bg-gradient-to-r from-accent to-primary bg-clip-text text-transparent">
                 ATMA
               </span>
             </div>
@@ -128,7 +128,7 @@ export default function Login() {
                 </div>
                 <Link 
                   to="/auth/forgot-password" 
-                  className="text-sm text-primary hover:text-primary-glow"
+                  className="text-sm text-primary hover:text-accent"
                 >
                   Forgot password?
                 </Link>
@@ -163,7 +163,7 @@ export default function Login() {
               Don't have an account?{" "}
               <Link 
                 to="/auth/signup" 
-                className="text-primary hover:text-primary-glow font-medium"
+                className="text-primary hover:text-accent font-medium"
               >
                 Sign up here
               </Link>

@@ -30,78 +30,78 @@
   }
 
   .dark {
-    /* ATMA Dark Theme - Based on Figma Midnight Shadow & The Basics */
-    --background: 0 0% 5.5%; /* #0E0E0E */
-    --foreground: 0 0% 95%; /* #F2F2F2 */
+    /* ATMA Dark Theme - Enhanced with Purple Accents & Better Contrast */
+    --background: 0 0% 8%; /* #141414 - Much darker for better contrast */
+    --foreground: 0 0% 92%; /* #EBEBEB - Brighter text for better readability */
     
     /* Cards with subtle elevation */
-    --card: 0 0% 14.5%; /* #252525 */
-    --card-foreground: 0 0% 95%; /* #F2F2F2 */
-    --card-hover: 0 0% 29%; /* #4A4A4A */
+    --card: 0 0% 12%; /* #1F1F1F - Darker cards for depth */
+    --card-foreground: 0 0% 92%; /* #EBEBEB */
+    --card-hover: 0 0% 16%; /* #292929 - Subtle hover state */
     
     /* Popovers and dialogs */
-    --popover: 0 0% 14.5%; /* #252525 */
-    --popover-foreground: 0 0% 95%; /* #F2F2F2 */
+    --popover: 0 0% 12%; /* #1F1F1F */
+    --popover-foreground: 0 0% 92%; /* #EBEBEB */
     
-    /* Primary - Warm Red */
-    --primary: 0 73% 46%; /* #D41414 */
-    --primary-glow: 0 73% 60%; /* Lighter red */
-    --primary-dark: 0 73% 35%; /* Darker red */
-    --primary-foreground: 0 0% 95%; /* #F2F2F2 */
+    /* Primary - Deep Purple with sophistication */
+    --primary: 260 30% 35%; /* #4A3B5C - Deep purple-gray */
+    --primary-glow: 260 40% 55%; /* #7C6B8F - Lighter purple for glow */
+    --primary-dark: 260 35% 25%; /* #3A2B4A - Darker purple */
+    --primary-foreground: 0 0% 92%; /* #EBEBEB */
     
-    /* Secondary - Orange */
-    --secondary: 20 90% 50%; /* #DC3C0C */
-    --secondary-glow: 20 90% 65%; /* Lighter orange */
-    --secondary-foreground: 0 0% 95%; /* #F2F2F2 */
+    /* Secondary - Warm Gray with Purple Undertones */
+    --secondary: 280 15% 50%; /* #736B7A - Purple-gray */
+    --secondary-glow: 280 20% 65%; /* #9B8FA8 - Lighter purple-gray */
+    --secondary-foreground: 0 0% 92%; /* #EBEBEB */
     
-    /* Accent - Warm Orange */
-    --accent: 32 95% 52%; /* #F2720C */
-    --accent-glow: 32 95% 65%; /* Lighter orange */
-    --accent-foreground: 0 0% 10%; /* Dark text on orange */
+    /* Accent - Bright Purple for highlights */
+    --accent: 270 50% 60%; /* #9B7BC7 - Vibrant purple accent */
+    --accent-glow: 270 60% 75%; /* #B89DE0 - Lighter purple */
+    --accent-foreground: 0 0% 10%; /* Dark text on bright accent */
     
-    /* Success - Green */
-    --success: 88 45% 55%; /* #B0D19A */
-    --success-glow: 88 45% 70%; 
-    --success-foreground: 0 0% 10%; /* Dark text on green */
+    /* Success - Emerald green for positive actions */
+    --success: 160 50% 45%; /* #3D8B57 - Deep emerald */
+    --success-glow: 160 60% 55%; /* #4CAF68 - Brighter emerald */
+    --success-foreground: 0 0% 92%; /* Bright text */
     
-    /* Warning - Yellow */
-    --warning: 48 91% 51%; /* #F5BF0F */
-    --warning-glow: 48 91% 65%;
+    /* Warning - Amber yellow for attention */
+    --warning: 45 85% 55%; /* #E6B800 - Rich amber */
+    --warning-glow: 45 90% 65%; /* #F2C94C - Lighter amber */
     --warning-foreground: 0 0% 10%; /* Dark text on yellow */
     
-    /* Destructive - Deep Red */
-    --destructive: 0 79% 63%; /* #F61C24 */
-    --destructive-glow: 0 79% 75%;
-    --destructive-foreground: 0 0% 95%; /* #F2F2F2 */
+    /* Destructive - Crimson red for errors */
+    --destructive: 0 65% 50%; /* #CC2936 - Deep crimson */
+    --destructive-glow: 0 70% 60%; /* #E53E3E - Brighter red */
+    --destructive-foreground: 0 0% 92%; /* Bright text */
     
-    /* Muted elements */
-    --muted: 0 0% 38%; /* #616161 */
-    --muted-foreground: 0 0% 61%; /* #9B9B9B */
+    /* Muted elements - Subtle grays with purple undertones */
+    --muted: 260 10% 25%; /* #3B3A41 - Dark purple-gray */
+    --muted-foreground: 260 8% 60%; /* #8B899B - Medium purple-gray */
     
-    /* Borders and inputs */
-    --border: 0 0% 29%; /* #4A4A4A */
-    --input: 0 0% 29%; /* #4A4A4A */
-    --ring: 0 73% 46%; /* Same as primary */
+    /* Borders and inputs - Darker for better definition */
+    --border: 260 15% 20%; /* #2F2D3A - Dark purple-gray border */
+    --input: 260 15% 20%; /* #2F2D3A - Input background */
+    --ring: 270 50% 60%; /* Same as accent for focus rings */
     
-    /* Sidebar specific */
-    --sidebar-background: 0 0% 5.5%; /* #0E0E0E */
-    --sidebar-foreground: 0 0% 95%; /* #F2F2F2 */
-    --sidebar-primary: 0 73% 46%; /* #D41414 */
-    --sidebar-primary-foreground: 0 0% 95%; /* #F2F2F2 */
-    --sidebar-accent: 0 0% 14.5%; /* #252525 */
-    --sidebar-accent-foreground: 0 0% 95%; /* #F2F2F2 */
-    --sidebar-border: 0 0% 29%; /* #4A4A4A */
-    --sidebar-ring: 0 73% 46%; /* Same as primary */
+    /* Sidebar specific - Enhanced with purple theme */
+    --sidebar-background: 0 0% 8%; /* #141414 - Same as main background */
+    --sidebar-foreground: 0 0% 92%; /* #EBEBEB */
+    --sidebar-primary: 260 30% 35%; /* #4A3B5C - Deep purple */
+    --sidebar-primary-foreground: 0 0% 92%; /* #EBEBEB */
+    --sidebar-accent: 0 0% 12%; /* #1F1F1F - Card color for accent */
+    --sidebar-accent-foreground: 0 0% 92%; /* #EBEBEB */
+    --sidebar-border: 260 15% 20%; /* #2F2D3A - Purple-gray border */
+    --sidebar-ring: 270 50% 60%; /* Bright purple for focus */
     
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(0 73% 46%) 0%, hsl(20 90% 50%) 100%);
-    --gradient-hero: linear-gradient(135deg, hsl(0 0% 5.5%) 0%, hsl(0 0% 14.5%) 100%);
-    --gradient-card: linear-gradient(135deg, hsl(0 0% 14.5%) 0%, hsl(0 0% 29%) 100%);
+    /* Gradients - Enhanced with purple theme */
+    --gradient-primary: linear-gradient(135deg, hsl(260 30% 35%) 0%, hsl(270 50% 60%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(0 0% 8%) 0%, hsl(260 20% 15%) 100%);
+    --gradient-card: linear-gradient(135deg, hsl(0 0% 12%) 0%, hsl(260 15% 18%) 100%);
     
-    /* Shadows */
-    --shadow-glow: 0 0 30px hsl(0 73% 46% / 0.3);
-    --shadow-card: 0 10px 30px -15px hsl(0 0% 5.5% / 0.5);
-    --shadow-elevated: 0 25px 50px -12px hsl(0 0% 5.5% / 0.7);
+    /* Shadows - Enhanced with purple glow */
+    --shadow-glow: 0 0 30px hsl(270 50% 60% / 0.2);
+    --shadow-card: 0 10px 30px -15px hsl(0 0% 5% / 0.8);
+    --shadow-elevated: 0 25px 50px -12px hsl(0 0% 5% / 0.9);
   }
 }
 
@@ -147,17 +147,41 @@
     box-shadow: 0 0 20px hsl(var(--accent-glow) / 0.5);
   }
   
-  /* Animated gradients */
+  /* Animated gradients - Enhanced with purple theme */
   .animated-gradient {
     background: linear-gradient(
       45deg,
       hsl(var(--primary)),
-      hsl(var(--secondary)),
       hsl(var(--accent)),
+      hsl(var(--secondary)),
       hsl(var(--primary))
     );
     background-size: 300% 300%;
-    animation: gradient 6s ease infinite;
+    animation: gradient 8s ease infinite;
+  }
+  
+  /* Glowing text animation */
+  .glow-text {
+    text-shadow: 
+      0 0 10px hsl(var(--accent) / 0.5),
+      0 0 20px hsl(var(--accent) / 0.3),
+      0 0 30px hsl(var(--accent) / 0.2);
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+  
+  @keyframes pulse-glow {
+    0%, 100% { 
+      text-shadow: 
+        0 0 10px hsl(var(--accent) / 0.5),
+        0 0 20px hsl(var(--accent) / 0.3),
+        0 0 30px hsl(var(--accent) / 0.2);
+    }
+    50% { 
+      text-shadow: 
+        0 0 15px hsl(var(--accent) / 0.7),
+        0 0 25px hsl(var(--accent) / 0.5),
+        0 0 35px hsl(var(--accent) / 0.3);
+    }
   }
   
   @keyframes gradient {
@@ -166,20 +190,21 @@
     100% { background-position: 0% 50%; }
   }
   
-  /* Hero section styles */
+  /* Hero section styles - Enhanced with purple theme */
   .hero-overlay {
     background: linear-gradient(
       135deg,
-      hsl(224 71.4% 4.1% / 0.9) 0%,
-      hsl(215 27.9% 16.9% / 0.8) 100%
+      hsl(0 0% 8% / 0.95) 0%,
+      hsl(260 20% 15% / 0.9) 50%,
+      hsl(270 30% 20% / 0.85) 100%
     );
   }
   
-  /* Glass morphism */
+  /* Glass morphism - Enhanced */
   .glass {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(75, 59, 92, 0.1); /* Purple tint */
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(155, 123, 199, 0.2); /* Accent border */
   }
   
   /* Floating animation */
