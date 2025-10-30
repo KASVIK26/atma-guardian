@@ -1,5 +1,6 @@
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import { withAuth } from "../lib/withAuth";
 
 const NotFound = () => {
   const location = useLocation();
@@ -24,4 +25,4 @@ const NotFound = () => {
   );
 };
 
-export default NotFound;
+export default withAuth(NotFound);

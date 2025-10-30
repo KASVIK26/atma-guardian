@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -17,22 +17,42 @@ import {
   ArrowLeft,
   Shield 
 } from "lucide-react";
+import { supabase } from '@/lib/supabase';
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(localStorage.getItem('rememberMe') === 'true');
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const remember = localStorage.getItem('rememberMe') === 'true';
+      const { data } = await supabase.auth.getSession();
+      if (remember && data.session) {
+        navigate('/dashboard');
+      }
+    };
+    checkSession();
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // Simulate login process
-    setTimeout(() => {
-      setIsLoading(false);
-      toast.success("Login successful!");
-      navigate("/dashboard");
-    }, 1500);
+    localStorage.setItem('rememberMe', rememberMe ? 'true' : 'false');
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    setIsLoading(false);
+    if (error) {
+      toast.error(error.message || 'Login failed');
+      return;
+    }
+    toast.success('Login successful!');
+    navigate('/dashboard');
   };
 
   return (
@@ -88,6 +108,8 @@ export default function Login() {
                     placeholder="admin@university.edu"
                     className="pl-10"
                     required
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
                   />
                 </div>
               </div>
@@ -102,6 +124,8 @@ export default function Login() {
                     placeholder="Enter your password"
                     className="pl-10 pr-10"
                     required
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
                   />
                   <Button
                     type="button"
@@ -121,7 +145,7 @@ export default function Login() {
               
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <Checkbox id="remember" />
+                  <Checkbox id="remember" checked={rememberMe} onCheckedChange={checked => setRememberMe(checked === true)} />
                   <Label htmlFor="remember" className="text-sm">
                     Remember me
                   </Label>

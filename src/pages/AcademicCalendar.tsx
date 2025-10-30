@@ -2,14 +2,14 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Navbar } from "@/components/layout/Navbar";
-import { UserCheck } from "lucide-react";
+import { Calendar } from "lucide-react";
 import { withAuth } from '../lib/withAuth';
 import { useEffect } from 'react';
 
-function AttendanceRecords({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, sidebarItems }) {
+function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, sidebarItems }) {
   useEffect(() => {
-    if (currentPage !== 'attendance') {
-      setCurrentPage('attendance');
+    if (currentPage !== 'calendar') {
+      setCurrentPage('calendar');
     }
   }, [currentPage, setCurrentPage]);
 
@@ -28,9 +28,9 @@ function AttendanceRecords({ sidebarOpen, setSidebarOpen, currentPage, setCurren
           <div className="max-w-7xl mx-auto space-y-6">
             {/* Header */}
             <PageHeader
-              title="Attendance Records"
-              description="View and manage student attendance analytics"
-              icon={<UserCheck />}
+              title="Academic Calendar"
+              description="View academic events, schedules, and important dates"
+              icon={<Calendar />}
             />
 
             <div className="flex items-center justify-center min-h-[400px]">
@@ -39,7 +39,7 @@ function AttendanceRecords({ sidebarOpen, setSidebarOpen, currentPage, setCurren
                   <CardTitle>Upcoming</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  This feature is coming soon.
+                  Academic Calendar feature is coming soon.
                 </CardContent>
               </Card>
             </div>
@@ -50,4 +50,4 @@ function AttendanceRecords({ sidebarOpen, setSidebarOpen, currentPage, setCurren
   );
 }
 
-export default withAuth(AttendanceRecords);
+export default withAuth(AcademicCalendar);

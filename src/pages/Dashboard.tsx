@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Navbar } from "@/components/layout/Navbar";
+import { PageHeader } from "@/components/layout/PageHeader";
 import University from "./University";
 import BuildingsRooms from "./BuildingsRooms"; 
 import AttendanceRecords from "./AttendanceRecords";
@@ -37,8 +38,12 @@ import {
   Menu,
   X
 } from "lucide-react";
+import { withAuth } from '../lib/withAuth';
+import { useNavigate } from 'react-router-dom';
+import { Sidebar } from '@/components/layout/Sidebar';
+import { supabase } from '../lib/supabase';
 
-export default function Dashboard() {
+function Dashboard({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, sidebarItems }) {
   const [timeOfDay] = useState(() => {
     const hour = new Date().getHours();
     if (hour < 12) return "morning";
@@ -46,8 +51,6 @@ export default function Dashboard() {
     return "evening";
   });
 
-  const [sidebarOpen, setSidebarOpen] = useState(true); // Default open on desktop
-  const [currentPage, setCurrentPage] = useState("dashboard");
   const [liveStats, setLiveStats] = useState({
     totalStudents: 0,
     activeTeachers: 0,
@@ -57,6 +60,41 @@ export default function Dashboard() {
     absent: 0,
     late: 0
   });
+
+  const [profile, setProfile] = useState(null);
+  const [universityCode, setUniversityCode] = useState('');
+  
+  useEffect(() => {
+    // Ensure the current page is set to dashboard when this component mounts
+    if (currentPage !== 'dashboard') {
+      setCurrentPage('dashboard');
+    }
+    
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        supabase
+          .from('users')
+          .select('full_name, university_id')
+          .eq('id', data.user.id)
+          .single()
+          .then(({ data: profileData }) => {
+            setProfile(profileData);
+            if (profileData?.university_id) {
+              supabase
+                .from('universities')
+                .select('code')
+                .eq('id', profileData.university_id)
+                .single()
+                .then(({ data: uniData }) => {
+                  setUniversityCode(uniData?.code || '');
+                });
+            }
+          });
+      }
+    });
+  }, [currentPage, setCurrentPage]);
+
+  const navigate = useNavigate();
 
   // Handle responsive sidebar behavior
   useEffect(() => {
@@ -80,101 +118,97 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Simulate live data updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLiveStats(prev => ({
-        totalStudents: Math.min(prev.totalStudents + Math.floor(Math.random() * 5), 2847),
-        activeTeachers: Math.min(prev.activeTeachers + Math.floor(Math.random() * 2), 156),
-        liveSessions: Math.min(prev.liveSessions + Math.floor(Math.random() * 3), 23),
-        attendanceRate: Math.min(prev.attendanceRate + Math.random() * 2, 87.3),
-        presentToday: Math.min(prev.presentToday + Math.floor(Math.random() * 10), 2483),
-        absent: Math.min(prev.absent + Math.floor(Math.random() * 3), 364),
-        late: Math.min(prev.late + Math.floor(Math.random() * 2), 127)
-      }));
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const sidebarItems = [
+  const sidebarItemsLocal = [
     {
       id: "dashboard",
       title: "Dashboard",
       icon: BarChart3,
-      description: "Overview & Analytics"
+      description: "Overview & Analytics",
+      route: "/dashboard"
     },
     {
       id: "university",
       title: "Your University",
       icon: School,
-      description: "University Settings & Info"
+      description: "University Settings & Info",
+      route: "/university"
     },
     {
       id: "buildings",
       title: "Buildings & Rooms",
       icon: Building2,
-      description: "Campus Infrastructure"
+      description: "Campus Infrastructure",
+      route: "/buildings"
     },
     {
       id: "users",
       title: "Users Management",
       icon: UserCog,
-      description: "Students, Teachers & Admins"
+      description: "Students, Teachers & Admins",
+      route: "/users"
     },
     {
       id: "programs",
       title: "Academic Programs",
       icon: GraduationCap,
-      description: "Programs, Branches & Sections"
+      description: "Programs, Branches & Sections",
+      route: "/programs"
     },
     {
       id: "sessions",
       title: "Lecture Sessions",
       icon: Clock,
-      description: "Live & Scheduled Sessions"
+      description: "Live & Scheduled Sessions",
+      route: "/sessions"
     },
     {
       id: "attendance",
       title: "Attendance Records",
       icon: UserCheck,
-      description: "Attendance Analytics"
+      description: "Attendance Analytics",
+      route: "/attendance"
     },
     {
       id: "calendar",
       title: "Academic Calendar",
       icon: Calendar,
-      description: "Events & Holidays"
+      description: "Events & Holidays",
+      route: "/calendar"
     },
     {
       id: "notifications",
       title: "Notifications",
       icon: Bell,
-      description: "System Alerts & Messages"
+      description: "System Alerts & Messages",
+      route: "/notifications"
     },
     {
       id: "security",
       title: "Security & Audit",
       icon: Shield,
-      description: "Security Logs & TOTP"
+      description: "Security Logs & TOTP",
+      route: "/security"
     },
     {
       id: "sensors",
       title: "Sensor Data",
       icon: Wifi,
-      description: "IoT & Geofencing Data"
+      description: "IoT & Geofencing Data",
+      route: "/sensors"
     },
     {
       id: "reports",
       title: "Reports & Analytics",
       icon: FileText,
-      description: "Generate Reports"
+      description: "Generate Reports",
+      route: "/reports"
     },
     {
       id: "settings",
       title: "System Settings",
       icon: Settings,
-      description: "Configuration & Preferences"
+      description: "Configuration & Preferences",
+      route: "/settings"
     }
   ];
 
@@ -328,15 +362,15 @@ export default function Dashboard() {
   const renderPageContent = () => {
     switch (currentPage) {
       case "university":
-        return <University />;
+        return <University sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />;
       case "buildings":
-        return <BuildingsRooms />;
+        return <BuildingsRooms sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />;
       case "attendance":
-        return <AttendanceRecords />;
+        return <AttendanceRecords sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />;
       case "sessions":
-        return <LectureSessions />;
+        return <LectureSessions sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />;
       case "users":
-        return <UsersManagement />;
+        return <UsersManagement sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />;
       case "programs":
         return (
           <Card>
@@ -477,50 +511,13 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen dark bg-background flex">
-      {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 bg-card border-r border-border transform transition-transform duration-300 ease-in-out ${
-        sidebarOpen ? 'w-64 translate-x-0' : 'w-16 translate-x-0'
-      } lg:relative lg:translate-x-0`}>
-        {/* Sidebar Header with Menu Toggle */}
-        <div className="flex items-center justify-between h-16 px-4 border-b border-border">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="hover:bg-muted p-2"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-        </div>
-        {/* Sidebar Navigation */}
-        <nav className="flex-1 p-4 overflow-y-auto scrollbar-hide">
-          <div className="space-y-2">
-            {sidebarItems.map((item) => (
-              <Button
-                key={item.id}
-                variant={currentPage === item.id ? "default" : "ghost"}
-                className={`w-full ${sidebarOpen ? 'justify-start h-auto p-3' : 'justify-center h-10 p-2'} transition-all duration-200`}
-                onClick={() => {
-                  setCurrentPage(item.id);
-                  if (window.innerWidth < 1024) {
-                    setSidebarOpen(false);
-                  }
-                }}
-                title={!sidebarOpen ? item.title : undefined}
-              >
-                <item.icon className={`h-4 w-4 ${sidebarOpen ? 'mr-3' : ''} flex-shrink-0`} />
-                {sidebarOpen && (
-                  <div className="text-left flex-1">
-                    <div className="font-medium text-sm">{item.title}</div>
-                    <div className="text-xs text-muted-foreground">{item.description}</div>
-                  </div>
-                )}
-              </Button>
-            ))}
-          </div>
-        </nav>
-      </div>
-
+      <Sidebar
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+        sidebarItems={sidebarItems}
+      />
       {/* Overlay - only on mobile when sidebar is open */}
       {sidebarOpen && (
         <div 
@@ -528,7 +525,6 @@ export default function Dashboard() {
           onClick={() => setSidebarOpen(false)}
         />
       )}
-
       {/* Main Content */}
       <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarOpen ? 'lg:ml-0' : 'lg:ml-0'} overflow-hidden`}>
         <Navbar showProfileMenu />
@@ -539,16 +535,12 @@ export default function Dashboard() {
             {currentPage === "dashboard" ? (
               <>
                 {/* Header */}
-                <motion.div {...fadeInUp} className="mb-8">
-                  <div>
-                    <h1 className="text-3xl font-bold mb-2">
-                      Good {timeOfDay}, Dr. Sarah! 👋
-                    </h1>
-                    <p className="text-muted-foreground">
-                      Here's what's happening at Stanford University today.
-                    </p>
-                  </div>
-                </motion.div>
+                <PageHeader
+                  customGreeting={`Good ${timeOfDay}`}
+                  userName={profile?.full_name?.split(' ')[0] || 'User'}
+                  timeOfDay={timeOfDay as "morning" | "afternoon" | "evening"}
+                  description={`Here's what's happening at ${universityCode ? universityCode : 'your university'} today.`}
+                />
 
               {/* Stats Cards */}
               <motion.div 
@@ -814,3 +806,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+export default withAuth(Dashboard);

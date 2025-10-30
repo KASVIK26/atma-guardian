@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Navbar } from "@/components/layout/Navbar";
+import { PageHeader } from "@/components/layout/PageHeader";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +28,8 @@ import {
   Calendar,
   MapPin
 } from "lucide-react";
+import { withAuth } from '../lib/withAuth';
+import { Sidebar } from '@/components/layout/Sidebar';
 
 interface Section {
   id: string;
@@ -54,7 +57,7 @@ interface Program {
   totalStudents: number;
 }
 
-export default function UniversityStructure() {
+function UniversityStructure({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, sidebarItems }) {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
@@ -244,31 +247,30 @@ export default function UniversityStructure() {
   };
 
   return (
-    <div className="min-h-screen dark bg-background">
-      <Navbar showProfileMenu />
+    <div className="min-h-screen dark bg-background flex">
+      <Sidebar
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+        sidebarItems={sidebarItems}
+      />
       
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <motion.div
-          className="flex items-center justify-between mb-8"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <div>
-            <h1 className="text-3xl font-bold mb-2">University Structure</h1>
-            <p className="text-muted-foreground">
-              Manage your academic programs, branches, years, and sections
-            </p>
-          </div>
-
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="glow">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Program
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
+        {/* Header */}
+        <PageHeader
+          title="University Structure"
+          description="Manage your academic programs, branches, years, and sections"
+          icon={<GraduationCap />}
+          actions={
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="glow">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Program
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Add New Program</DialogTitle>
                 <DialogDescription>
@@ -290,8 +292,9 @@ export default function UniversityStructure() {
                 <Button variant="glow">Create Program</Button>
               </DialogFooter>
             </DialogContent>
-          </Dialog>
-        </motion.div>
+            </Dialog>
+          }
+        />
 
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Tree View */}
@@ -418,3 +421,5 @@ export default function UniversityStructure() {
     </div>
   );
 }
+
+export default withAuth(UniversityStructure);

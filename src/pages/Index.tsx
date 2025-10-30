@@ -1,3 +1,5 @@
+import { withAuth } from '../lib/withAuth';
+
 // Update this page (the content is just a fallback if you fail to update the page)
 
 const Index = () => {
@@ -11,4 +13,4 @@ const Index = () => {
   );
 };
 
-export default Index;
+export default withAuth(Index);

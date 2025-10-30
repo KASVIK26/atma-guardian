@@ -17,7 +17,7 @@ import {
   Wifi
 } from "lucide-react";
 
-export default function Welcome() {
+function Welcome() {
   const fadeInUp = {
     initial: { opacity: 0, y: 20 },
     animate: { opacity: 1, y: 0 },
@@ -285,3 +285,5 @@ export default function Welcome() {
     </div>
   );
 }
+
+export default Welcome;

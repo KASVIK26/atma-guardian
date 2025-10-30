@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -21,6 +21,8 @@ import {
   Menu,
   X 
 } from "lucide-react";
+import { supabase } from '@/lib/supabase';
+import { toast } from '@/hooks/use-toast';
 
 interface NavbarProps {
   showProfileMenu?: boolean;
@@ -30,6 +32,56 @@ interface NavbarProps {
 export function Navbar({ showProfileMenu = false, transparent = false }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user);
+      if (data.user) {
+        supabase
+          .from('users')
+          .select('full_name, email, avatar_url')
+          .eq('id', data.user.id)
+          .single()
+          .then(({ data: profileData }) => {
+            setProfile(profileData);
+          });
+      }
+    });
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to log out. Please try again.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Logged out successfully.",
+        });
+        navigate('/auth/login');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleNavigation = (path: string) => {
+    navigate(path);
+    setMobileMenuOpen(false);
+  };
 
   const navClass = transparent 
     ? "fixed top-0 left-0 right-0 z-50 bg-transparent"
@@ -61,7 +113,12 @@ export function Navbar({ showProfileMenu = false, transparent = false }: NavbarP
             {showProfileMenu ? (
               <>
                 {/* Notifications */}
-                <Button variant="ghost" size="icon" className="relative">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="relative"
+                  onClick={() => handleNavigation('/notifications')}
+                >
                   <Bell className="h-5 w-5" />
                   <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs bg-destructive">
                     3
@@ -69,7 +126,11 @@ export function Navbar({ showProfileMenu = false, transparent = false }: NavbarP
                 </Button>
 
                 {/* Settings */}
-                <Button variant="ghost" size="icon">
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => handleNavigation('/settings')}
+                >
                   <Settings className="h-5 w-5" />
                 </Button>
 
@@ -78,31 +139,33 @@ export function Navbar({ showProfileMenu = false, transparent = false }: NavbarP
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src="/avatar.png" alt="Admin" />
-                        <AvatarFallback>AD</AvatarFallback>
+                        <AvatarImage src={profile?.avatar_url || "/avatar.png"} alt={profile?.full_name || user?.email || "User"} />
+                        <AvatarFallback>{profile?.full_name?.slice(0,2) || "U"}</AvatarFallback>
                       </Avatar>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-56" align="end" forceMount>
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">Dr. Sarah Johnson</p>
+                        {profile?.full_name && (
+                          <p className="text-sm font-medium leading-none">{profile.full_name}</p>
+                        )}
                         <p className="text-xs leading-none text-muted-foreground">
-                          admin@university.edu
+                          {profile?.email || user?.email || "No email"}
                         </p>
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleNavigation('/profile')}>
                       <User className="mr-2 h-4 w-4" />
                       <span>Profile</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleNavigation('/settings')}>
                       <Settings className="mr-2 h-4 w-4" />
                       <span>Settings</span>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-destructive">
+                    <DropdownMenuItem className="text-destructive" onClick={handleLogout}>
                       <LogOut className="mr-2 h-4 w-4" />
                       <span>Log out</span>
                     </DropdownMenuItem>
@@ -143,19 +206,35 @@ export function Navbar({ showProfileMenu = false, transparent = false }: NavbarP
           <div className="px-2 pt-2 pb-3 space-y-1">
             {showProfileMenu ? (
               <>
-                <Button variant="ghost" className="w-full justify-start">
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-start"
+                  onClick={() => handleNavigation('/notifications')}
+                >
                   <Bell className="mr-2 h-4 w-4" />
                   Notifications
                 </Button>
-                <Button variant="ghost" className="w-full justify-start">
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-start"
+                  onClick={() => handleNavigation('/settings')}
+                >
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </Button>
-                <Button variant="ghost" className="w-full justify-start">
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-start"
+                  onClick={() => handleNavigation('/profile')}
+                >
                   <User className="mr-2 h-4 w-4" />
                   Profile
                 </Button>
-                <Button variant="ghost" className="w-full justify-start text-destructive">
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-start text-destructive"
+                  onClick={handleLogout}
+                >
                   <LogOut className="mr-2 h-4 w-4" />
                   Log out
                 </Button>
