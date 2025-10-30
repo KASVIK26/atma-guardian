@@ -42,11 +42,15 @@ export function Navbar({ showProfileMenu = false, transparent = false }: NavbarP
       if (data.user) {
         supabase
           .from('users')
-          .select('full_name, email, avatar_url')
+          .select('full_name, email, profile_image_url')
           .eq('id', data.user.id)
           .single()
-          .then(({ data: profileData }) => {
-            setProfile(profileData);
+          .then(({ data: profileData, error }) => {
+            if (error) {
+              console.error('Error fetching profile:', error);
+            } else {
+              setProfile(profileData);
+            }
           });
       }
     });

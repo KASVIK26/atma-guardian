@@ -13,6 +13,7 @@ interface TimetableEntry {
   courseCode: string;
   courseName: string;
   instructor: string;
+  instructorCode?: string;
   room: string;
   semester?: number;
 }
@@ -22,6 +23,7 @@ interface StudentEnrollment {
   rollNumber: string;
   name: string;
   email?: string;
+  regMailId?: string;
   phone?: string;
   year?: number;
 }
@@ -33,7 +35,7 @@ serve(async (req) => {
   }
 
   try {
-    // Create Supabase client
+    // Create Supabase client with service role
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -46,7 +48,7 @@ serve(async (req) => {
       timetableData,
       enrollmentData,
       uploadInfo 
-    } = await req.json()
+    = await req.json()
 
     console.log('Processing section data:', { sectionId, universityId, userId })
 
@@ -54,6 +56,7 @@ serve(async (req) => {
     const results = {
       timetableProcessed: 0,
       enrollmentProcessed: 0,
+      instructorsCreated: 0,
       lectureSessionsCreated: 0,
       errors: []
     }
@@ -68,7 +71,7 @@ serve(async (req) => {
           const { data: existingStudent } = await supabaseClient
             .from('users')
             .select('id')
-            .eq('roll_number', student.rollNumber)
+            .eq('email', student.email)
             .eq('university_id', universityId)
             .single()
 
@@ -80,7 +83,7 @@ serve(async (req) => {
               .from('users')
               .insert({
                 university_id: universityId,
-                roll_number: student.rollNumber,
+                enrollment_id: student.rollNumber,
                 full_name: student.name,
                 email: student.email,
                 phone: student.phone,
@@ -98,18 +101,19 @@ serve(async (req) => {
             studentId = newStudent.id
           }
 
-          // Create enrollment record
+          // Create enrollment record with reg_mail_id
           const { error: enrollError } = await supabaseClient
             .from('student_enrollments')
             .insert({
               student_id: studentId,
               section_id: sectionId,
+              reg_mail_id: student.regMailId || student.email,
               enrollment_date: new Date().toISOString().split('T')[0],
               is_active: true
             })
-            .onConflict('student_id, section_id')
+            .select()
 
-          if (enrollError && !enrollError.message.includes('duplicate')) {
+          if (enrollError && !enrollError.message?.includes('duplicate')) {
             console.error('Error creating enrollment:', enrollError)
             results.errors.push(`Failed to enroll student ${student.name}: ${enrollError.message}`)
           } else {
@@ -118,12 +122,12 @@ serve(async (req) => {
 
         } catch (error) {
           console.error('Error processing student:', error)
-          results.errors.push(`Error processing student ${student.name}: ${error.message}`)
+          results.errors.push(`Error processing student ${student.name}: ${(error as Error).message}`)
         }
       }
     }
 
-    // 2. Process timetable data (create courses and timetable entries)
+    // 2. Process timetable data (create instructors, courses, and timetable entries)
     if (timetableData && timetableData.length > 0) {
       console.log('Processing timetable data:', timetableData.length, 'entries')
 
@@ -136,12 +140,60 @@ serve(async (req) => {
 
       if (!section) {
         results.errors.push('Section not found')
-        return Response.json({ success: false, results }, { headers: corsHeaders })
+        return new Response(JSON.stringify({ success: false, results }), { 
+          headers: corsHeaders,
+          status: 400
+        })
       }
+
+      // Keep track of processed instructors to avoid duplicates
+      const processedInstructors = new Map<string, string>()
 
       for (const entry of timetableData) {
         try {
-          // Find or create course
+          // 2a. Find or create instructor (using instructor code)
+          let instructorId = null
+          const instructorCode = entry.instructorCode?.trim() || entry.instructor?.trim().split(' ')[0]
+
+          if (instructorCode) {
+            // Check if instructor already exists
+            const { data: existingInstructor } = await supabaseClient
+              .from('instructors')
+              .select('id')
+              .eq('instructor_code', instructorCode)
+              .eq('university_id', universityId)
+              .single()
+
+            if (existingInstructor) {
+              instructorId = existingInstructor.id
+              processedInstructors.set(instructorCode, instructorId)
+            } else if (!processedInstructors.has(instructorCode)) {
+              // Create new instructor
+              const { data: newInstructor, error: instructorError } = await supabaseClient
+                .from('instructors')
+                .insert({
+                  university_id: universityId,
+                  instructor_code: instructorCode,
+                  full_name: entry.instructor || `Instructor ${instructorCode}`,
+                  is_active: true
+                })
+                .select('id')
+                .single()
+
+              if (instructorError) {
+                console.error('Error creating instructor:', instructorError)
+                results.errors.push(`Failed to create instructor ${instructorCode}: ${instructorError.message}`)
+              } else {
+                instructorId = newInstructor.id
+                processedInstructors.set(instructorCode, instructorId)
+                results.instructorsCreated++
+              }
+            } else {
+              instructorId = processedInstructors.get(instructorCode) || null
+            }
+          }
+
+          // 2b. Find or create course
           let courseId
           const { data: existingCourse } = await supabaseClient
             .from('courses')
@@ -175,46 +227,14 @@ serve(async (req) => {
             courseId = newCourse.id
           }
 
-          // Find or create instructor
-          let instructorId
-          if (entry.instructor) {
-            const { data: existingInstructor } = await supabaseClient
-              .from('users')
-              .select('id')
-              .eq('full_name', entry.instructor)
-              .eq('university_id', universityId)
-              .eq('role', 'teacher')
-              .single()
-
-            if (existingInstructor) {
-              instructorId = existingInstructor.id
-            } else {
-              // Create placeholder instructor
-              const { data: newInstructor, error: instructorError } = await supabaseClient
-                .from('users')
-                .insert({
-                  university_id: universityId,
-                  full_name: entry.instructor,
-                  role: 'teacher',
-                  is_active: true
-                })
-                .select('id')
-                .single()
-
-              if (!instructorError) {
-                instructorId = newInstructor.id
-              }
-            }
-          }
-
-          // Find or create room
+          // 2c. Find or create room
           let roomId
           if (entry.room) {
             const { data: existingRoom } = await supabaseClient
               .from('rooms')
               .select('id')
-              .eq('room_number', entry.room)
               .limit(1)
+              .eq('room_number', entry.room)
               .single()
 
             if (existingRoom) {
@@ -222,20 +242,22 @@ serve(async (req) => {
             }
           }
 
-          // Convert day name to number (1 = Monday, 7 = Sunday)
+          // 2d. Convert day name to number (1 = Monday, 7 = Sunday)
           const dayMap = {
-            'monday': 1, 'tuesday': 2, 'wednesday': 3, 'thursday': 4,
-            'friday': 5, 'saturday': 6, 'sunday': 7
+            'monday': 1, 'tue': 2, 'tuesday': 2, 'wed': 3, 'wednesday': 3, 
+            'thursday': 4, 'thu': 4, 'friday': 5, 'fri': 5, 'saturday': 6, 'sat': 6, 
+            'sunday': 7, 'sun': 7
           }
-          const dayOfWeek = dayMap[entry.day.toLowerCase()] || 1
+          const dayOfWeek = dayMap[entry.day.toLowerCase() as keyof typeof dayMap] || 1
 
-          // Create timetable entry
+          // 2e. Create timetable entry with instructor_code
           const { error: timetableError } = await supabaseClient
             .from('timetables')
             .insert({
               section_id: sectionId,
               course_id: courseId,
-              instructor_id: instructorId,
+              instructor_id: instructorId, // Keep for backward compatibility
+              instructor_code: instructorCode, // New instructor code field
               room_id: roomId,
               day_of_week: dayOfWeek,
               start_time: entry.startTime,
@@ -254,7 +276,7 @@ serve(async (req) => {
 
         } catch (error) {
           console.error('Error processing timetable entry:', error)
-          results.errors.push(`Error processing timetable entry ${entry.courseCode}: ${error.message}`)
+          results.errors.push(`Error processing timetable entry ${entry.courseCode}: ${(error as Error).message}`)
         }
       }
     }
@@ -297,16 +319,19 @@ serve(async (req) => {
 
       if (timetables) {
         const today = new Date()
-        const semesterStart = new Date(today.getFullYear(), today.getMonth(), 1) // Start of current month
-        const semesterEnd = new Date(today.getFullYear(), today.getMonth() + 4, 0) // 4 months ahead
+        const semesterStart = new Date(today.getFullYear(), today.getMonth(), 1)
+        const semesterEnd = new Date(today.getFullYear(), today.getMonth() + 4, 0)
 
         for (const timetable of timetables) {
-          // Generate sessions for each week
           const sessions = []
           const currentDate = new Date(semesterStart)
 
           while (currentDate <= semesterEnd) {
-            if (currentDate.getDay() === timetable.day_of_week % 7) {
+            // Adjust for JavaScript's getDay (0 = Sunday) vs our day_of_week (1 = Monday)
+            const jsDay = currentDate.getDay()
+            const ourDayFormat = jsDay === 0 ? 7 : jsDay
+            
+            if (ourDayFormat === timetable.day_of_week) {
               sessions.push({
                 timetable_id: timetable.id,
                 scheduled_date: currentDate.toISOString().split('T')[0],
@@ -333,17 +358,17 @@ serve(async (req) => {
 
     console.log('Processing completed:', results)
 
-    return Response.json({
+    return new Response(JSON.stringify({
       success: true,
       results
-    }, { headers: corsHeaders })
+    }), { headers: corsHeaders })
 
   } catch (error) {
     console.error('Edge function error:', error)
-    return Response.json({
+    return new Response(JSON.stringify({
       success: false,
-      error: error.message
-    }, { 
+      error: (error as Error).message
+    }), { 
       status: 500,
       headers: corsHeaders 
     })

@@ -20,6 +20,10 @@ import AcademicCalendar from "./pages/AcademicCalendar";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import Notifications from "./pages/Notifications";
+import BuildingManagement from "./pages/BuildingManagement";
+import RoomManagement from "./pages/RoomManagement";
+import InstructorManagement from "./pages/InstructorManagement";
+import CourseManagement from "./pages/CourseManagement";
 import { SidebarItem } from "./components/layout/Sidebar";
 import { Users, GraduationCap, Clock, TrendingUp, Plus, Calendar, MapPin, Bell, Activity, BookOpen, UserCheck, AlertTriangle, ChevronRight, Building2, School, Settings as SettingsIcon, BarChart3, FileText, UserCog, Shield, Database, Wifi, Camera, Menu, X } from "lucide-react";
 
@@ -59,9 +63,13 @@ const AppRouter = () => {
 			<Route path="/dashboard" element={<Dashboard sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/university" element={<University sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/buildings" element={<BuildingsRooms sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
+			<Route path="/building-management" element={<BuildingManagement sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
+			<Route path="/room-management" element={<RoomManagement sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/attendance" element={<AttendanceRecords sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/sessions" element={<LectureSessions sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/users" element={<UsersManagement sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
+			<Route path="/instructors" element={<InstructorManagement sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
+			<Route path="/courses" element={<CourseManagement sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/structure" element={<UniversityStructure sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/calendar" element={<AcademicCalendar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/profile" element={<Profile />} />

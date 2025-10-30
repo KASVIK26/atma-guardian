@@ -213,6 +213,7 @@ CREATE TABLE buildings (
     longitude DECIMAL(11, 8) NOT NULL,
     altitude_meters DECIMAL(8, 2),
     geofence_radius_meters INTEGER DEFAULT 50,
+    geofence_geojson JSONB DEFAULT NULL,
     floor_count INTEGER DEFAULT 1,
     address TEXT,
     is_active BOOLEAN DEFAULT true,
