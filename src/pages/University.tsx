@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +37,9 @@ import {
   AlertCircle,
   Clock,
   Download,
-  Eye
+  Eye,
+  Zap,
+  FolderOpen
 } from "lucide-react";
 import { withAuth } from '../lib/withAuth';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -53,11 +56,13 @@ import {
 } from '@/data/academicStructure';
 
 function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, sidebarItems }) {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("overview");
   const [university, setUniversity] = useState(null);
   const [programs, setPrograms] = useState([]);
   const [branches, setBranches] = useState([]);
   const [years, setYears] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -81,6 +86,17 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
   const [yearForm, setYearForm] = useState({
     academic_year: '',
     year_number: 1
+  });
+
+  const [courseForm, setCourseForm] = useState({
+    branch_id: '',
+    course_code: '',
+    course_name: '',
+    credits: 3,
+    course_type: 'theory',
+    semester: 1,
+    description: '',
+    is_active: true
   });
 
   const [sectionForm, setSectionForm] = useState({
@@ -162,6 +178,18 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
             .order('academic_year', { ascending: false });
 
           setYears(yearsData || []);
+
+          // Fetch courses
+          const { data: coursesData } = await supabase
+            .from('courses')
+            .select(`
+              *,
+              branches (name, code, programs (name))
+            `)
+            .in('branch_id', (branchesData || []).map(b => b.id))
+            .order('course_code', { ascending: true });
+
+          setCourses(coursesData || []);
 
           // Fetch sections with branch and year info
           const { data: sectionsData } = await supabase
@@ -258,6 +286,109 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
     } catch (error) {
       console.error('Error creating year:', error);
       toast.error('Failed to create academic year');
+    }
+  };
+
+  const handleCreateCourse = async () => {
+    try {
+      if (!courseForm.branch_id) {
+        toast.error('Please select a branch');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('courses')
+        .insert({
+          branch_id: courseForm.branch_id,
+          course_code: courseForm.course_code,
+          course_name: courseForm.course_name,
+          credits: courseForm.credits,
+          course_type: courseForm.course_type,
+          semester: courseForm.semester,
+          description: courseForm.description,
+          is_active: courseForm.is_active
+        });
+
+      if (error) throw error;
+
+      toast.success('Course created successfully');
+      setDialogOpen(false);
+      setCourseForm({
+        branch_id: '',
+        course_code: '',
+        course_name: '',
+        credits: 3,
+        course_type: 'theory',
+        semester: 1,
+        description: '',
+        is_active: true
+      });
+      fetchData();
+    } catch (error) {
+      console.error('Error creating course:', error);
+      toast.error('Failed to create course');
+    }
+  };
+
+  const handleUpdateCourse = async () => {
+    try {
+      if (!editingItem?.id || !courseForm.branch_id) {
+        toast.error('Invalid course data');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('courses')
+        .update({
+          branch_id: courseForm.branch_id,
+          course_code: courseForm.course_code,
+          course_name: courseForm.course_name,
+          credits: courseForm.credits,
+          course_type: courseForm.course_type,
+          semester: courseForm.semester,
+          description: courseForm.description,
+          is_active: courseForm.is_active
+        })
+        .eq('id', editingItem.id);
+
+      if (error) throw error;
+
+      toast.success('Course updated successfully');
+      setDialogOpen(false);
+      setCourseForm({
+        branch_id: '',
+        course_code: '',
+        course_name: '',
+        credits: 3,
+        course_type: 'theory',
+        semester: 1,
+        description: '',
+        is_active: true
+      });
+      setEditingItem(null);
+      fetchData();
+    } catch (error) {
+      console.error('Error updating course:', error);
+      toast.error('Failed to update course');
+    }
+  };
+
+  const handleDeleteCourse = async (courseId: string) => {
+    if (!confirm('Are you sure you want to delete this course?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('courses')
+        .delete()
+        .eq('id', courseId);
+
+      if (error) throw error;
+
+      toast.success('Course deleted successfully');
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting course:', error);
+      toast.error('Failed to delete course');
     }
   };
 
@@ -520,6 +651,17 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
         academic_year: item.academic_year,
         year_number: item.year_number
       });
+    } else if (type === 'course') {
+      setCourseForm({
+        branch_id: item.branch_id,
+        course_code: item.course_code,
+        course_name: item.course_name,
+        credits: item.credits,
+        course_type: item.course_type,
+        semester: item.semester,
+        description: item.description || '',
+        is_active: item.is_active
+      });
     } else if (type === 'section') {
       setSectionForm({
         branch_id: item.branch_id,
@@ -667,11 +809,12 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
             {/* Tabs */}
             <div className="bg-card rounded-lg border">
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-6">
+                <TabsList className="grid w-full grid-cols-7">
                   <TabsTrigger value="overview">Overview</TabsTrigger>
                   <TabsTrigger value="programs">Programs</TabsTrigger>
                   <TabsTrigger value="branches">Branches</TabsTrigger>
                   <TabsTrigger value="years">Academic Years</TabsTrigger>
+                  <TabsTrigger value="courses">Courses</TabsTrigger>
                   <TabsTrigger value="sections">Sections</TabsTrigger>
                   <TabsTrigger value="files">File Management</TabsTrigger>
                 </TabsList>
@@ -949,6 +1092,114 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
                 </div>
               </TabsContent>
 
+              {/* Courses Tab */}
+              <TabsContent value="courses" className="p-6 mt-0 space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-semibold">Courses</h2>
+                  <Button onClick={() => openDialog('course')} disabled={branches.length === 0}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Course
+                  </Button>
+                </div>
+
+                {branches.length === 0 ? (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      You need to create at least one branch before adding courses.
+                    </AlertDescription>
+                  </Alert>
+                ) : courses.length === 0 ? (
+                  <div className="text-center py-12">
+                    <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium text-muted-foreground mb-2">No Courses Yet</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Start by creating your first course to organize academic content for your branches.
+                    </p>
+                    <Button onClick={() => openDialog('course')}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create First Course
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {branches.map((branch) => {
+                      const branchCourses = courses.filter(c => c.branch_id === branch.id);
+                      if (branchCourses.length === 0) return null;
+
+                      return (
+                        <div key={branch.id} className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <BookOpen className="h-4 w-4 text-primary" />
+                            <h3 className="font-semibold">{branch.code} - {branch.name}</h3>
+                            <Badge variant="outline" className="ml-auto">{branchCourses.length} courses</Badge>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {branchCourses.map((course) => (
+                              <Card key={course.id} className="hover:shadow-md transition-shadow">
+                                <CardHeader>
+                                  <div className="flex justify-between items-start gap-2">
+                                    <div className="flex-1">
+                                      <CardTitle className="text-base">{course.course_code}</CardTitle>
+                                      <CardDescription className="line-clamp-1">{course.course_name}</CardDescription>
+                                    </div>
+                                    <Badge variant={course.is_active ? "default" : "secondary"} className="whitespace-nowrap">
+                                      {course.is_active ? "Active" : "Inactive"}
+                                    </Badge>
+                                  </div>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                  <div className="grid grid-cols-3 gap-2 text-xs">
+                                    <div className="space-y-1">
+                                      <p className="text-muted-foreground">Credits</p>
+                                      <p className="font-semibold text-base">{course.credits}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <p className="text-muted-foreground">Semester</p>
+                                      <p className="font-semibold text-base">{course.semester}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <p className="text-muted-foreground">Type</p>
+                                      <p className="font-semibold text-xs capitalize">{course.course_type}</p>
+                                    </div>
+                                  </div>
+                                  
+                                  {course.description && (
+                                    <p className="text-xs text-muted-foreground line-clamp-2">{course.description}</p>
+                                  )}
+                                  
+                                  <div className="flex space-x-2 pt-2">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      className="flex-1"
+                                      onClick={() => openEditDialog('course', course)}
+                                    >
+                                      <Edit className="w-3 h-3 mr-1" />
+                                      Edit
+                                    </Button>
+                                    <Button 
+                                      variant="destructive" 
+                                      size="sm" 
+                                      className="flex-1"
+                                      onClick={() => handleDeleteCourse(course.id)}
+                                    >
+                                      <Trash2 className="w-3 h-3 mr-1" />
+                                      Delete
+                                    </Button>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </TabsContent>
+
               {/* Sections Tab */}
               <TabsContent value="sections" className="p-6 mt-0 space-y-6">
                 <div className="flex justify-between items-center">
@@ -1026,6 +1277,26 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
                             >
                               <Eye className="w-3 h-3 mr-1" />
                               View
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border">
+                            <Button 
+                              variant="secondary" 
+                              size="sm" 
+                              className="gap-1"
+                              onClick={() => navigate(`/timetable?sectionId=${section.id}`)}
+                            >
+                              <Calendar className="w-3 h-3" />
+                              Timetable
+                            </Button>
+                            <Button 
+                              variant="secondary" 
+                              size="sm" 
+                              className="gap-1"
+                              onClick={() => navigate(`/enrollment?sectionId=${section.id}`)}
+                            >
+                              <Users className="w-3 h-3" />
+                              Enrollment
                             </Button>
                           </div>
                         </CardContent>
@@ -1394,6 +1665,152 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
             </>
           )}
 
+          {dialogType === 'course' && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{editMode ? 'Edit Course' : 'Add New Course'}</DialogTitle>
+                <DialogDescription>
+                  {editMode ? 'Update course information.' : 'Create a new course for your branches.'}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="course-branch" className="text-right">
+                    Branch <span className="text-red-500">*</span>
+                  </Label>
+                  <Select 
+                    value={courseForm.branch_id} 
+                    onValueChange={(value) => setCourseForm({...courseForm, branch_id: value})}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches.map((branch) => (
+                        <SelectItem key={branch.id} value={branch.id}>
+                          {branch.code} - {branch.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="course-code" className="text-right">
+                    Course Code <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="course-code"
+                    value={courseForm.course_code}
+                    onChange={(e) => setCourseForm({...courseForm, course_code: e.target.value.toUpperCase()})}
+                    className="col-span-3"
+                    placeholder="CS101"
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="course-name" className="text-right">
+                    Course Name <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="course-name"
+                    value={courseForm.course_name}
+                    onChange={(e) => setCourseForm({...courseForm, course_name: e.target.value})}
+                    className="col-span-3"
+                    placeholder="Introduction to Programming"
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="course-credits" className="text-right">
+                    Credits <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="course-credits"
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={courseForm.credits}
+                    onChange={(e) => setCourseForm({...courseForm, credits: parseInt(e.target.value)})}
+                    className="col-span-3"
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="course-semester" className="text-right">
+                    Semester <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="course-semester"
+                    type="number"
+                    min="1"
+                    max="8"
+                    value={courseForm.semester}
+                    onChange={(e) => setCourseForm({...courseForm, semester: parseInt(e.target.value)})}
+                    className="col-span-3"
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="course-type" className="text-right">
+                    Course Type <span className="text-red-500">*</span>
+                  </Label>
+                  <Select 
+                    value={courseForm.course_type} 
+                    onValueChange={(value) => setCourseForm({...courseForm, course_type: value})}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="theory">Theory</SelectItem>
+                      <SelectItem value="practical">Practical</SelectItem>
+                      <SelectItem value="hybrid">Hybrid</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label htmlFor="course-description" className="text-right mt-2">
+                    Description
+                  </Label>
+                  <textarea
+                    id="course-description"
+                    value={courseForm.description}
+                    onChange={(e) => setCourseForm({...courseForm, description: e.target.value})}
+                    className="col-span-3 px-3 py-2 border border-input rounded-md bg-background resize-none"
+                    placeholder="Course description..."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label className="text-right">Active</Label>
+                  <div className="col-span-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={courseForm.is_active}
+                        onChange={(e) => setCourseForm({...courseForm, is_active: e.target.checked})}
+                        className="rounded w-4 h-4"
+                      />
+                      <span className="text-sm">Mark as active</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button 
+                  type="submit" 
+                  onClick={editMode ? handleUpdateCourse : handleCreateCourse}
+                  disabled={!courseForm.branch_id || !courseForm.course_code || !courseForm.course_name}
+                >
+                  {editMode ? 'Update' : 'Create'} Course
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
           {dialogType === 'section' && (
             <>
               <DialogHeader className="pb-6">
@@ -1480,247 +1897,25 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
                     </div>
                   </div>
                 </div>
-
-                {!viewMode && (
-                  <>
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2">
-                        <Upload className="w-5 h-5 text-primary" />
-                        <h3 className="text-lg font-medium">Document Uploads</h3>
-                      </div>
-                      
-                      {/* Document uploads in one row */}
-                      <div className="grid grid-cols-2 gap-6">
-                        {/* Timetable Upload */}
-                        <div className="space-y-3">
-                          <div className="border-2 border-dashed border-muted rounded-lg p-4 hover:border-primary/50 transition-colors">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Calendar className="w-4 h-4 text-primary" />
-                              <Label className="text-sm font-semibold">Timetable Upload</Label>
-                            </div>
-                            
-                            <Input
-                              type="file"
-                              accept=".pdf,.docx,.xlsx,.csv"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) handleFileUpload(file, 'timetable');
-                              }}
-                              className="h-8 cursor-pointer file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                            />
-                            <p className="text-xs text-muted-foreground mt-2">
-                              PDF, DOCX, XLSX, CSV supported
-                            </p>
-                            
-                            {parsingStatus.timetable.status !== 'idle' && (
-                              <div className="mt-3 space-y-2">
-                                {parsingStatus.timetable.status === 'parsing' && (
-                                  <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
-                                      <Upload className="w-3 h-3 animate-pulse text-primary" />
-                                      <span className="text-xs font-medium">Parsing...</span>
-                                    </div>
-                                    <Progress value={parsingStatus.timetable.progress} className="h-1" />
-                                  </div>
-                                )}
-                                
-                                {parsingStatus.timetable.status === 'completed' && (
-                                  <Alert className="py-2 border-green-200 bg-green-50">
-                                    <CheckCircle className="h-3 w-3 text-green-600" />
-                                    <AlertDescription className="text-xs text-green-800">
-                                      {parsingStatus.timetable.data.length} entries found
-                                    </AlertDescription>
-                                  </Alert>
-                                )}
-                                
-                                {parsingStatus.timetable.status === 'error' && (
-                                  <Alert variant="destructive" className="py-2">
-                                    <AlertCircle className="h-3 w-3" />
-                                    <AlertDescription className="text-xs">
-                                      Error parsing file
-                                      <Button 
-                                        variant="ghost" 
-                                        size="sm" 
-                                        onClick={() => resetFileStatus('timetable')}
-                                        className="ml-1 h-4 px-1 text-xs"
-                                      >
-                                        Retry
-                                      </Button>
-                                    </AlertDescription>
-                                  </Alert>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* Timetable Preview */}
-                          {parsingStatus.timetable.status === 'completed' && (
-                            <div className="border rounded-lg p-3 bg-muted/20">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="text-xs font-medium">Timetable Preview</h4>
-                                <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
-                                  {parsingStatus.timetable.data.length}
-                                </Badge>
-                              </div>
-                              <div className="max-h-24 overflow-y-auto space-y-1">
-                                {parsingStatus.timetable.data.slice(0, 3).map((entry, index) => (
-                                  <div key={index} className="text-xs p-1.5 bg-background rounded border">
-                                    <div className="font-medium text-xs">{entry.courseCode}</div>
-                                    <div className="text-muted-foreground text-xs">
-                                      {entry.day} • {entry.startTime}-{entry.endTime}
-                                    </div>
-                                  </div>
-                                ))}
-                                {parsingStatus.timetable.data.length > 3 && (
-                                  <div className="text-xs text-muted-foreground text-center py-1">
-                                    +{parsingStatus.timetable.data.length - 3} more...
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Enrollment Upload */}
-                        <div className="space-y-3">
-                          <div className="border-2 border-dashed border-muted rounded-lg p-4 hover:border-primary/50 transition-colors">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Users className="w-4 h-4 text-primary" />
-                              <Label className="text-sm font-semibold">Student Enrollment</Label>
-                            </div>
-                            
-                            <Input
-                              type="file"
-                              accept=".pdf,.docx,.xlsx,.csv"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) handleFileUpload(file, 'enrollment');
-                              }}
-                              className="h-8 cursor-pointer file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                            />
-                            <p className="text-xs text-muted-foreground mt-2">
-                              PDF, DOCX, XLSX, CSV supported
-                            </p>
-                            
-                            {parsingStatus.enrollment.status !== 'idle' && (
-                              <div className="mt-3 space-y-2">
-                                {parsingStatus.enrollment.status === 'parsing' && (
-                                  <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
-                                      <Upload className="w-3 h-3 animate-pulse text-primary" />
-                                      <span className="text-xs font-medium">Parsing...</span>
-                                    </div>
-                                    <Progress value={parsingStatus.enrollment.progress} className="h-1" />
-                                  </div>
-                                )}
-                                
-                                {parsingStatus.enrollment.status === 'completed' && (
-                                  <Alert className="py-2 border-green-200 bg-green-50">
-                                    <CheckCircle className="h-3 w-3 text-green-600" />
-                                    <AlertDescription className="text-xs text-green-800">
-                                      {parsingStatus.enrollment.data.length} students found
-                                    </AlertDescription>
-                                  </Alert>
-                                )}
-                                
-                                {parsingStatus.enrollment.status === 'error' && (
-                                  <Alert variant="destructive" className="py-2">
-                                    <AlertCircle className="h-3 w-3" />
-                                    <AlertDescription className="text-xs">
-                                      Error parsing file
-                                      <Button 
-                                        variant="ghost" 
-                                        size="sm" 
-                                        onClick={() => resetFileStatus('enrollment')}
-                                        className="ml-1 h-4 px-1 text-xs"
-                                      >
-                                        Retry
-                                      </Button>
-                                    </AlertDescription>
-                                  </Alert>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* Enrollment Preview */}
-                          {parsingStatus.enrollment.status === 'completed' && (
-                            <div className="border rounded-lg p-3 bg-muted/20">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="text-xs font-medium">Student Preview</h4>
-                                <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
-                                  {parsingStatus.enrollment.data.length}
-                                </Badge>
-                              </div>
-                              <div className="max-h-24 overflow-y-auto space-y-1">
-                                {parsingStatus.enrollment.data.slice(0, 3).map((student, index) => (
-                                  <div key={index} className="text-xs p-1.5 bg-background rounded border">
-                                    <div className="font-medium text-xs">{student.name}</div>
-                                    <div className="text-muted-foreground text-xs">
-                                      Roll: {student.rollNumber}
-                                    </div>
-                                  </div>
-                                ))}
-                                {parsingStatus.enrollment.data.length > 3 && (
-                                  <div className="text-xs text-muted-foreground text-center py-1">
-                                    +{parsingStatus.enrollment.data.length - 3} more...
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
               </div>
               <DialogFooter className="pt-6 border-t mt-auto flex-shrink-0">
-                <div className="flex justify-between items-center w-full">
-                  <div className="text-sm text-muted-foreground">
-                    {parsingStatus.timetable.data.length > 0 && (
-                      <span className="text-blue-600">
-                        📅 {parsingStatus.timetable.data.length} timetable entries ready
-                      </span>
-                    )}
-                    {parsingStatus.enrollment.data.length > 0 && (
-                      <span className="text-green-600 ml-4">
-                        👥 {parsingStatus.enrollment.data.length} students ready
-                      </span>
-                    )}
-                  </div>
-                  
-                  <div className="flex gap-2">
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline"
+                    onClick={() => setDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  {!viewMode && (
                     <Button 
-                      variant="outline"
-                      onClick={() => setDialogOpen(false)}
+                      type="submit" 
+                      onClick={editMode ? handleEditSection : handleCreateSection}
+                      disabled={!sectionForm.branch_id || !sectionForm.year_id || !sectionForm.name}
+                      className="min-w-[120px]"
                     >
-                      Cancel
+                      {editMode ? 'Update Section' : 'Create Section'}
                     </Button>
-                    {!viewMode && (
-                      <Button 
-                        type="submit" 
-                        onClick={editMode ? handleEditSection : handleCreateSection}
-                        disabled={
-                          !sectionForm.branch_id || 
-                          !sectionForm.year_id || 
-                          !sectionForm.name ||
-                          parsingStatus.timetable.status === 'parsing' ||
-                          parsingStatus.enrollment.status === 'parsing'
-                        }
-                        className="min-w-[120px]"
-                      >
-                        {parsingStatus.timetable.status === 'parsing' || parsingStatus.enrollment.status === 'parsing' ? (
-                          <div className="flex items-center gap-2">
-                            <Upload className="w-4 h-4 animate-spin" />
-                            Processing...
-                          </div>
-                        ) : (
-                          editMode ? 'Update Section' : 'Create Section'
-                        )}
-                      </Button>
-                    )}
-                  </div>
+                  )}
                 </div>
               </DialogFooter>
             </>

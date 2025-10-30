@@ -272,4 +272,35 @@
   .dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     @apply bg-muted-foreground/50;
   }
+
+  /* Invisible scrollbar - for dialogs and portals */
+  .scrollbar-invisible {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-invisible::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Dark theme invisible scrollbar with subtle accent */
+  .dark .scrollbar-invisible-dark {
+    scrollbar-width: thin;
+  }
+
+  .dark .scrollbar-invisible-dark::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .dark .scrollbar-invisible-dark::-webkit-scrollbar-track {
+    @apply bg-card;
+  }
+
+  .dark .scrollbar-invisible-dark::-webkit-scrollbar-thumb {
+    @apply bg-card rounded-full;
+  }
+
+  .dark .scrollbar-invisible-dark::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/20 rounded-full;
+  }
 }

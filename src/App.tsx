@@ -24,6 +24,8 @@ import BuildingManagement from "./pages/BuildingManagement";
 import RoomManagement from "./pages/RoomManagement";
 import InstructorManagement from "./pages/InstructorManagement";
 import CourseManagement from "./pages/CourseManagement";
+import TimetableManagement from "./pages/TimetableManagement";
+import EnrollmentManagement from "./pages/EnrollmentManagement";
 import { SidebarItem } from "./components/layout/Sidebar";
 import { Users, GraduationCap, Clock, TrendingUp, Plus, Calendar, MapPin, Bell, Activity, BookOpen, UserCheck, AlertTriangle, ChevronRight, Building2, School, Settings as SettingsIcon, BarChart3, FileText, UserCog, Shield, Database, Wifi, Camera, Menu, X } from "lucide-react";
 
@@ -70,6 +72,8 @@ const AppRouter = () => {
 			<Route path="/users" element={<UsersManagement sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/instructors" element={<InstructorManagement sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/courses" element={<CourseManagement sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
+			<Route path="/timetable" element={<TimetableManagement sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
+			<Route path="/enrollment" element={<EnrollmentManagement sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/structure" element={<UniversityStructure sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/calendar" element={<AcademicCalendar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/profile" element={<Profile />} />

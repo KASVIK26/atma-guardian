@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Search, DoorOpen } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, DoorOpen, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Navbar } from '@/components/layout/Navbar';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { MapPortal } from '@/components/MapPortal';
 import { withAuth } from '../lib/withAuth';
 
 interface Building {
@@ -21,9 +22,14 @@ interface Building {
 interface Room {
   id: string;
   room_number: string;
+  room_name?: string;
   floor_number: number;
   capacity: number;
   room_type: string;
+  latitude?: number;
+  longitude?: number;
+  geofence_geojson?: any;
+  baseline_pressure_hpa?: number;
   is_active: boolean;
   building_id: string;
   buildings: Building;
@@ -36,13 +42,18 @@ function RoomManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPa
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isMapOpen, setIsMapOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [formData, setFormData] = useState({
     room_number: '',
+    room_name: '',
     floor_number: 1,
     capacity: 30,
     room_type: 'lecture_hall',
     building_id: '',
+    latitude: 0,
+    longitude: 0,
+    geofence_geojson: undefined as any,
     is_active: true
   });
 
@@ -87,20 +98,28 @@ function RoomManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPa
       setEditingRoom(room);
       setFormData({
         room_number: room.room_number,
+        room_name: room.room_name || '',
         floor_number: room.floor_number,
         capacity: room.capacity,
         room_type: room.room_type,
         building_id: room.building_id,
+        latitude: room.latitude || 0,
+        longitude: room.longitude || 0,
+        geofence_geojson: room.geofence_geojson,
         is_active: room.is_active
       });
     } else {
       setEditingRoom(null);
       setFormData({
         room_number: '',
+        room_name: '',
         floor_number: 1,
         capacity: 30,
         room_type: 'lecture_hall',
         building_id: buildings.length > 0 ? buildings[0].id : '',
+        latitude: 0,
+        longitude: 0,
+        geofence_geojson: undefined,
         is_active: true
       });
     }
@@ -112,10 +131,14 @@ function RoomManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPa
     setEditingRoom(null);
     setFormData({
       room_number: '',
+      room_name: '',
       floor_number: 1,
       capacity: 30,
       room_type: 'lecture_hall',
       building_id: buildings.length > 0 ? buildings[0].id : '',
+      latitude: 0,
+      longitude: 0,
+      geofence_geojson: undefined,
       is_active: true
     });
   };
@@ -131,10 +154,14 @@ function RoomManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPa
     try {
       const dataToSave = {
         room_number: formData.room_number,
+        room_name: formData.room_name || null,
         floor_number: formData.floor_number,
         capacity: formData.capacity,
         room_type: formData.room_type,
         building_id: formData.building_id,
+        latitude: formData.latitude || null,
+        longitude: formData.longitude || null,
+        geofence_geojson: formData.geofence_geojson || null,
         is_active: formData.is_active
       };
 
@@ -181,6 +208,17 @@ function RoomManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPa
       console.error('Error deleting room:', error);
       toast.error(error.message || 'Failed to delete room');
     }
+  };
+
+  const handleLocationSelect = (lat: number, lng: number, address: string, geofence?: GeoJSON.Polygon) => {
+    setFormData({
+      ...formData,
+      latitude: lat,
+      longitude: lng,
+      geofence_geojson: geofence
+    });
+    setIsMapOpen(false);
+    toast.success('Location selected successfully');
   };
 
   const filteredRooms = rooms.filter(room =>
@@ -236,6 +274,7 @@ function RoomManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPa
                     <TableHead>Floor</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Capacity</TableHead>
+                    <TableHead>Pressure (hPa)</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -261,6 +300,13 @@ function RoomManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPa
                         <TableCell className="text-center">{room.floor_number}</TableCell>
                         <TableCell className="capitalize">{room.room_type.replace('_', ' ')}</TableCell>
                         <TableCell className="text-center">{room.capacity}</TableCell>
+                        <TableCell className="text-center">
+                          {room.baseline_pressure_hpa ? (
+                            <span className="font-mono text-sm">{room.baseline_pressure_hpa.toFixed(2)}</span>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                             room.is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
@@ -307,7 +353,7 @@ function RoomManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPa
           </DialogHeader>
           
           <form onSubmit={handleSubmit}>
-            <div className="space-y-5 py-4 px-1 max-h-[calc(90vh-200px)] overflow-y-auto scrollbar-thin">
+            <div className="space-y-5 py-4 px-1 max-h-[calc(90vh-200px)] overflow-y-auto scrollbar-invisible-dark">
               <div className="space-y-2">
                 <label className="text-sm font-semibold">
                   Building <span className="text-red-500">*</span>
@@ -339,6 +385,18 @@ function RoomManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPa
                   value={formData.room_number}
                   onChange={(e) => setFormData({ ...formData, room_number: e.target.value })}
                   placeholder="e.g., A-101"
+                  className="border-border/50"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">
+                  Room Name
+                </label>
+                <Input
+                  value={formData.room_name}
+                  onChange={(e) => setFormData({ ...formData, room_name: e.target.value })}
+                  placeholder="e.g., Computer Lab, Lecture Hall A"
                   className="border-border/50"
                 />
               </div>
@@ -393,6 +451,71 @@ function RoomManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPa
                 </Select>
               </div>
 
+              {/* Geofence Location Section */}
+              <div className="border-t pt-4 mt-4">
+                <h3 className="text-sm font-semibold mb-4">📍 Geofence & Location</h3>
+                
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsMapOpen(true)}
+                  className="w-full mb-4 flex items-center justify-center gap-2"
+                >
+                  <MapPin className="h-4 w-4" />
+                  Select Location on Map
+                </Button>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold">
+                      Latitude
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.00000001"
+                      value={formData.latitude}
+                      onChange={(e) => setFormData({ ...formData, latitude: parseFloat(e.target.value) })}
+                      placeholder="e.g., 28.7041"
+                      className="border-border/50"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold">
+                      Longitude
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.00000001"
+                      value={formData.longitude}
+                      onChange={(e) => setFormData({ ...formData, longitude: parseFloat(e.target.value) })}
+                      placeholder="e.g., 77.1025"
+                      className="border-border/50"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2 mt-4">
+                  <label className="text-sm font-semibold">
+                    Geofence GeoJSON Polygon (Optional)
+                  </label>
+                  <textarea
+                    value={formData.geofence_geojson ? JSON.stringify(formData.geofence_geojson, null, 2) : ''}
+                    onChange={(e) => {
+                      try {
+                        const parsed = e.target.value ? JSON.parse(e.target.value) : undefined;
+                        setFormData({ ...formData, geofence_geojson: parsed });
+                      } catch (err) {
+                        // Invalid JSON, don't update
+                      }
+                    }}
+                    placeholder='{"type": "Polygon", "coordinates": [[[77.1, 28.7], ...]]}'
+                    className="w-full px-3 py-2 text-xs border border-border/50 rounded-md font-mono bg-muted/50"
+                    rows={5}
+                  />
+                </div>
+              </div>
+
               <div className="border-t border-border/50 pt-4">
                 <label className="flex items-center gap-3 cursor-pointer hover:bg-muted/50 p-2 rounded-md transition">
                   <input
@@ -417,6 +540,16 @@ function RoomManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPa
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Map Portal for Location Selection */}
+      <MapPortal
+        isOpen={isMapOpen}
+        onClose={() => setIsMapOpen(false)}
+        onLocationSelect={handleLocationSelect}
+        initialLat={formData.latitude}
+        initialLng={formData.longitude}
+        initialGeofence={formData.geofence_geojson}
+      />
     </div>
   );
 }

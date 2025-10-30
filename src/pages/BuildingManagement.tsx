@@ -18,6 +18,7 @@ interface Building {
   code: string;
   address?: string;
   floor_count: number;
+  altitude_meters?: number;
   latitude: number;
   longitude: number;
   geofence_radius_meters: number;
@@ -39,6 +40,7 @@ function BuildingManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurre
     code: '',
     address: '',
     floor_count: 1,
+    altitude_meters: 0,
     latitude: 0,
     longitude: 0,
     geofence_radius_meters: 50,
@@ -104,6 +106,7 @@ function BuildingManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurre
         code: building.code,
         address: building.address || '',
         floor_count: building.floor_count,
+        altitude_meters: building.altitude_meters || 0,
         latitude: building.latitude,
         longitude: building.longitude,
         geofence_radius_meters: building.geofence_radius_meters,
@@ -118,6 +121,7 @@ function BuildingManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurre
         code: '',
         address: '',
         floor_count: 1,
+        altitude_meters: 0,
         latitude: 0,
         longitude: 0,
         geofence_radius_meters: 50,
@@ -137,6 +141,7 @@ function BuildingManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurre
       code: '',
       address: '',
       floor_count: 1,
+      altitude_meters: 0,
       latitude: 0,
       longitude: 0,
       geofence_radius_meters: 50,
@@ -168,14 +173,15 @@ function BuildingManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurre
       const dataToSave = {
         name: formData.name,
         code: formData.code,
-        address: formData.address,
+        address: formData.address || null,
         floor_count: formData.floor_count,
+        altitude_meters: formData.altitude_meters || null,
         latitude: formData.latitude,
         longitude: formData.longitude,
         geofence_radius_meters: formData.geofence_radius_meters,
         geofence_geojson: formData.geofence_geojson || null,
         is_active: formData.is_active,
-        university_id: formData.university_id
+        university_id: currentUserUniversityId
       };
 
       if (editingBuilding) {
@@ -355,12 +361,12 @@ function BuildingManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurre
           <DialogHeader>
             <DialogTitle>{editingBuilding ? 'Edit Building' : 'Add New Building'}</DialogTitle>
             <DialogDescription>
-              {editingBuilding ? 'Update building information and location' : 'Enter details and select location on map to add a new building'}
+              {editingBuilding ? 'Update building information' : 'Enter details to add a new building'}
             </DialogDescription>
           </DialogHeader>
           
           <form onSubmit={handleSubmit}>
-            <div className="space-y-5 py-4 px-1 max-h-[60vh] overflow-y-auto scrollbar-thin">
+            <div className="space-y-5 py-4 px-1 max-h-[60vh] overflow-y-auto scrollbar-invisible-dark">
               {/* Building Basic Info */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -407,6 +413,23 @@ function BuildingManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurre
                   />
                 </div>
 
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold">
+                    Altitude / Floor Height (meters)
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={formData.altitude_meters}
+                    onChange={(e) => setFormData({ ...formData, altitude_meters: parseFloat(e.target.value) })}
+                    placeholder="e.g., 500"
+                    className="border-border/50"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Geofence Radius (m)</label>
                   <Input

@@ -299,7 +299,7 @@ function InstructorManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
           </DialogHeader>
           
           <form onSubmit={handleSubmit}>
-            <div className="space-y-5 py-4 px-1 max-h-[60vh] overflow-y-auto scrollbar-thin">
+            <div className="space-y-5 py-4 px-1 max-h-[60vh] overflow-y-auto scrollbar-invisible-dark">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">
