@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Upload, ChevronLeft, Users, Download, Trash2, Plus, Search } from 'lucide-react';
+import { Upload, ChevronLeft, Users, Download, Trash2, Plus, Search, Loader2, Check, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,13 +14,21 @@ import { Navbar } from '@/components/layout/Navbar';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { useNavigate } from 'react-router-dom';
 import { parseFile } from '@/lib/fileParser';
+import * as XLSX from 'xlsx';
 
 interface StudentEnrollment {
   id: string;
+  student_id?: string;
   roll_number: string;
   student_name: string;
   batch?: string;
   email?: string;
+  reg_mail_id?: string;
+  enrollment_date?: string;
+}
+
+interface ColumnMapping {
+  [key: string]: string; // DB column -> File column
 }
 
 function EnrollmentManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, sidebarItems }) {
@@ -31,18 +39,32 @@ function EnrollmentManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
   
   const [students, setStudents] = useState<StudentEnrollment[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedBatch, setSelectedBatch] = useState('');
+  const [selectedBatch, setSelectedBatch] = useState('all');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [parseStatus, setParseStatus] = useState('idle');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<StudentEnrollment | null>(null);
   const [studentForm, setStudentForm] = useState({
+    student_id: '',
     roll_number: '',
     student_name: '',
     batch: '',
-    email: ''
+    email: '',
+    reg_mail_id: ''
   });
+  
+  // Column mapping for file upload
+  const [mappingDialogOpen, setMappingDialogOpen] = useState(false);
+  const [fileData, setFileData] = useState<any[]>([]); // Parsed data (StudentEnrollment objects)
+  const [rawFileData, setRawFileData] = useState<any[][]>([]); // Raw rows from file for preview
+  const [columnMapping, setColumnMapping] = useState<ColumnMapping>({
+    roll_number: 'skip',
+    student_name: 'skip',
+    email: 'skip',
+    batch: 'skip'
+  });
+  const [fileColumns, setFileColumns] = useState<string[]>([]);
 
   useEffect(() => {
     if (currentPage !== 'enrollment') {
@@ -55,36 +77,73 @@ function EnrollmentManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
       setSectionId(id);
       fetchEnrollmentData(id);
     } else {
+      console.error('No sectionId in URL params');
       toast.error('No section selected');
-      navigate('/university');
+      setTimeout(() => navigate('/university'), 1500);
     }
-  }, [currentPage, setCurrentPage]);
+  }, [currentPage, setCurrentPage, navigate]);
 
   const fetchEnrollmentData = async (id: string) => {
     try {
       setLoading(true);
+      console.log('Fetching enrollment data for section:', id);
       
       // Fetch section details
-      const { data: section } = await supabase
+      const { data: section, error: sectionError } = await supabase
         .from('sections')
         .select('*, branches(name, code), years(academic_year, year_number)')
         .eq('id', id)
         .single();
       
+      if (sectionError) {
+        console.error('Error fetching section:', sectionError);
+        throw sectionError;
+      }
+      
+      if (!section) {
+        console.error('Section not found:', id);
+        toast.error('Section not found');
+        navigate('/university');
+        return;
+      }
+      
+      console.log('Section loaded:', section);
       setSectionData(section);
 
-      // Fetch enrolled students
-      const { data: enrolled } = await supabase
-        .from('student_enrollment')
+      // Fetch enrolled students - try primary table first
+      console.log('Attempting to fetch from student_enrollments...');
+      const { data: enrolled, error: enrollError } = await supabase
+        .from('student_enrollments')
         .select('*')
         .eq('section_id', id);
       
-      setStudents(enrolled || []);
-    } catch (error) {
-      console.error('Error fetching enrollment data:', error);
-      toast.error('Failed to load enrollment data');
+      if (enrollError) {
+        console.warn('student_enrollments query error, trying student_enrollment:', enrollError);
+        // Try alternate table name
+        const { data: alt, error: altError } = await supabase
+          .from('student_enrollment')
+          .select('*')
+          .eq('section_id', id);
+        
+        if (altError) {
+          console.warn('Both table queries failed, showing empty list:', altError);
+          setStudents([]);
+        } else {
+          console.log('Got data from student_enrollment:', alt?.length || 0, 'records');
+          setStudents(alt || []);
+        }
+      } else {
+        console.log('Got data from student_enrollments:', enrolled?.length || 0, 'records');
+        setStudents(enrolled || []);
+      }
+    } catch (error: any) {
+      console.error('Error in fetchEnrollmentData:', error);
+      toast.error(error.message || 'Failed to load enrollment data');
+      setSectionData(null);
+      setStudents([]);
     } finally {
       setLoading(false);
+      console.log('Loading complete');
     }
   };
 
@@ -94,50 +153,134 @@ function EnrollmentManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
       setParseStatus('parsing');
       setUploadedFile(file);
 
+      // Parse the file to get raw data
       const result = await parseFile(file, 'enrollment');
       
-      if (result.success) {
-        setUploadProgress(100);
-        setParseStatus('completed');
+      if (result.success && result.data.length > 0) {
+        // Extract actual file columns from the first data row
+        // The file columns should be obtained from the raw header row
+        // For now, we'll use the keys from parsed data, but filter to actual columns with data
+        const sampleRow = result.data[0] || {};
+        let fileColumns = Object.keys(sampleRow).filter(key => {
+          // Filter out undefined or empty string values from column names
+          return key && key.trim() !== '';
+        });
         
-        // Add new students to the list
-        const newStudents: StudentEnrollment[] = result.data.map((student: any) => ({
-          id: `${Date.now()}-${Math.random()}`,
-          roll_number: student.rollNumber,
-          student_name: student.name,
-          batch: '',
-          email: student.email || ''
-        }));
+        let rawData: any[][] = [];
         
-        setStudents(prev => [...prev, ...newStudents]);
-        toast.success(`${result.data.length} students imported successfully`);
+        // If we still have placeholder columns, try to get headers from file directly
+        if (fileColumns.length < 4 || fileColumns.some(col => col === 'studentId')) {
+          // Re-parse to get raw headers
+          try {
+            const arrayBuffer = await file.arrayBuffer();
+            const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+            
+            if (rawData && rawData.length > 0) {
+              // First row is the header
+              const headerRow = (rawData[0] as any[]).filter(cell => cell && cell.toString().trim() !== '');
+              fileColumns = headerRow.map(cell => cell.toString().trim());
+              
+              // Store raw data without header row for preview
+              setRawFileData(rawData.slice(1));
+            }
+          } catch (err) {
+            console.warn('Could not extract raw headers:', err);
+            setRawFileData([]);
+          }
+        } else {
+          setRawFileData([]);
+        }
+        
+        setFileColumns(fileColumns);
+        setFileData(result.data);
+        
+        // Show mapping dialog
+        setMappingDialogOpen(true);
         setUploadProgress(0);
         setParseStatus('idle');
-        setUploadedFile(null);
       } else {
         setParseStatus('error');
-        toast.error(`Failed to parse file: ${result.errors.join(', ')}`);
+        toast.error(`Failed to parse file: ${result.errors?.join(', ') || 'Unknown error'}`);
+        setUploadProgress(0);
       }
     } catch (error) {
       console.error('Error uploading file:', error);
       setParseStatus('error');
       toast.error('Failed to upload file');
+      setUploadProgress(0);
+    }
+  };
+
+  const handleConfirmMapping = async () => {
+    try {
+      // Transform file data using column mapping
+      const dataToProcess = rawFileData.length > 0 ? rawFileData : fileData;
+      
+      const newStudents: StudentEnrollment[] = dataToProcess.map((row: any) => {
+        // If it's raw array data, use column indices
+        if (Array.isArray(row)) {
+          const rollIdx = fileColumns.indexOf(columnMapping.roll_number);
+          const nameIdx = fileColumns.indexOf(columnMapping.student_name);
+          const emailIdx = fileColumns.indexOf(columnMapping.email);
+          const batchIdx = fileColumns.indexOf(columnMapping.batch);
+          
+          return {
+            id: `${Date.now()}-${Math.random()}`,
+            student_id: '',
+            roll_number: columnMapping.roll_number !== 'skip' && rollIdx >= 0 ? (row[rollIdx]?.toString().trim() || '') : '',
+            student_name: columnMapping.student_name !== 'skip' && nameIdx >= 0 ? (row[nameIdx]?.toString().trim() || '') : '',
+            batch: columnMapping.batch !== 'skip' && batchIdx >= 0 ? (row[batchIdx]?.toString().trim() || '') : '',
+            email: columnMapping.email !== 'skip' && emailIdx >= 0 ? (row[emailIdx]?.toString().trim() || '') : '',
+            reg_mail_id: ''
+          };
+        }
+        
+        // If it's parsed object data, use field names
+        return {
+          id: `${Date.now()}-${Math.random()}`,
+          student_id: columnMapping.student_id !== 'skip' ? (row[columnMapping.student_id] || '') : '',
+          roll_number: columnMapping.roll_number !== 'skip' ? (row[columnMapping.roll_number] || '') : '',
+          student_name: columnMapping.student_name !== 'skip' ? (row[columnMapping.student_name] || '') : '',
+          batch: columnMapping.batch !== 'skip' ? (row[columnMapping.batch] || '') : '',
+          email: columnMapping.email !== 'skip' ? (row[columnMapping.email] || '') : '',
+          reg_mail_id: columnMapping.reg_mail_id !== 'skip' ? (row[columnMapping.reg_mail_id] || '') : ''
+        };
+      });
+      
+      // Add to local state first (preview before saving)
+      setStudents(prev => [...prev, ...newStudents]);
+      toast.success(`${newStudents.length} students imported (preview only). Click "Save Enrollment" to confirm.`);
+      
+      setMappingDialogOpen(false);
+      setFileData([]);
+      setRawFileData([]);
+      setFileColumns([]);
+      setColumnMapping({ roll_number: 'skip', student_name: 'skip', email: 'skip', batch: 'skip' });
+      setUploadedFile(null);
+    } catch (error) {
+      console.error('Error confirming mapping:', error);
+      toast.error('Failed to process mapped data');
     }
   };
 
   const handleAddStudent = () => {
     setEditingStudent(null);
-    setStudentForm({ roll_number: '', student_name: '', batch: '', email: '' });
+    setStudentForm({ student_id: '', roll_number: '', student_name: '', batch: '', email: '', reg_mail_id: '' });
     setDialogOpen(true);
   };
 
   const handleEditStudent = (student: StudentEnrollment) => {
     setEditingStudent(student);
     setStudentForm({
+      student_id: student.student_id || '',
       roll_number: student.roll_number,
       student_name: student.student_name,
       batch: student.batch || '',
-      email: student.email || ''
+      email: student.email || '',
+      reg_mail_id: student.reg_mail_id || ''
     });
     setDialogOpen(true);
   };
@@ -185,22 +328,44 @@ function EnrollmentManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
       if (!sectionId) return;
 
       // Save all students to database
-      const { error } = await supabase
-        .from('student_enrollment')
-        .upsert(
-          students.map(s => ({
-            id: s.id,
-            section_id: sectionId,
-            roll_number: s.roll_number,
-            student_name: s.student_name,
-            batch: s.batch,
-            email: s.email
-          })),
-          { onConflict: 'id' }
-        );
+      const enrollmentData = students
+        .filter(s => s.student_id || s.roll_number) // Only save records with at least ID or roll number
+        .map(s => ({
+          section_id: sectionId,
+          student_id: s.student_id || null,
+          roll_number: s.roll_number,
+          batch: s.batch || null,
+          email: s.email || null,
+          reg_mail_id: s.reg_mail_id || null,
+          enrollment_date: new Date().toISOString(),
+          is_active: true
+        }));
+
+      if (enrollmentData.length === 0) {
+        toast.error('No valid students to save');
+        return;
+      }
+
+      // Try primary table first
+      let error;
+      let result = await supabase
+        .from('student_enrollments')
+        .upsert(enrollmentData);
+      
+      error = result.error;
+      
+      // Fallback to alternate table name
+      if (error?.message.includes('not found')) {
+        result = await supabase
+          .from('student_enrollment')
+          .upsert(enrollmentData);
+        error = result.error;
+      }
 
       if (error) throw error;
-      toast.success('Enrollment saved successfully');
+      
+      toast.success(`${enrollmentData.length} enrollments saved successfully`);
+      fetchEnrollmentData(sectionId);
     } catch (error) {
       console.error('Error saving enrollment:', error);
       toast.error('Failed to save enrollment');
@@ -210,7 +375,7 @@ function EnrollmentManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
   const filteredStudents = students.filter(s =>
     (s.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
      s.roll_number.toLowerCase().includes(searchTerm.toLowerCase())) &&
-    (!selectedBatch || s.batch === selectedBatch)
+    (selectedBatch === 'all' || s.batch === selectedBatch)
   );
 
   const batches = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -240,7 +405,20 @@ function EnrollmentManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
         <Navbar showProfileMenu />
         
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-6xl mx-auto space-y-6">
+          {!loading && !sectionData ? (
+            <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+              <AlertTriangle className="h-12 w-12 text-destructive" />
+              <div className="text-center space-y-2">
+                <h2 className="text-lg font-semibold">Section Not Found</h2>
+                <p className="text-sm text-muted-foreground">The section you're trying to access doesn't exist or has been deleted.</p>
+              </div>
+              <Button onClick={() => navigate('/university')} variant="outline" className="gap-2">
+                <ChevronLeft className="h-4 w-4" />
+                Back to University
+              </Button>
+            </div>
+          ) : (
+            <div className="max-w-6xl mx-auto space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -333,7 +511,7 @@ function EnrollmentManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
                   <SelectValue placeholder="All Batches" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Batches</SelectItem>
+                  <SelectItem value="all">All Batches</SelectItem>
                   {batches.map(batch => (
                     <SelectItem key={batch} value={batch}>
                       {batch}
@@ -416,7 +594,8 @@ function EnrollmentManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
                 )}
               </CardContent>
             </Card>
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -482,6 +661,162 @@ function EnrollmentManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
             </Button>
             <Button onClick={handleSaveStudent}>
               {editingStudent ? 'Update' : 'Add'} Student
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Column Mapping Dialog */}
+      <Dialog open={mappingDialogOpen} onOpenChange={setMappingDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-invisible-dark">
+          <DialogHeader>
+            <DialogTitle>Map File Columns to Database Fields</DialogTitle>
+            <DialogDescription>
+              Match columns from your file to database fields. Preview shows {fileData.length} records to be imported.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Column Mapping Grid */}
+            <div className="border rounded-lg p-4 space-y-3">
+              <p className="text-sm font-medium">File contains {fileColumns.length} columns. Map required fields:</p>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-red-500">Roll Number *</label>
+                  <Select value={columnMapping.roll_number} onValueChange={(val) => setColumnMapping({...columnMapping, roll_number: val})}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select column" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {fileColumns.map(col => (
+                        <SelectItem key={col} value={col}>
+                          {col}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold">Student Name (Required)</label>
+                  <Select value={columnMapping.student_name} onValueChange={(val) => setColumnMapping({...columnMapping, student_name: val})}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select column or skip" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="skip">— Skip this field —</SelectItem>
+                      {fileColumns.map(col => (
+                        <SelectItem key={col} value={col}>
+                          {col}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold">Email (Optional)</label>
+                  <Select value={columnMapping.email} onValueChange={(val) => setColumnMapping({...columnMapping, email: val})}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select column or skip" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="skip">— Skip this field —</SelectItem>
+                      {fileColumns.map(col => (
+                        <SelectItem key={col} value={col}>
+                          {col}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold">Batch (Optional)</label>
+                  <Select value={columnMapping.batch} onValueChange={(val) => setColumnMapping({...columnMapping, batch: val})}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select column or skip" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="skip">— Skip this field —</SelectItem>
+                      {fileColumns.map(col => (
+                        <SelectItem key={col} value={col}>
+                          {col}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            {/* Live Preview */}
+            <div className="border rounded-lg p-4 bg-muted/30">
+              <p className="text-sm font-medium mb-3 text-foreground">Preview (First 3 Records):</p>
+              <div className="overflow-x-auto">
+                <Table className="text-xs">
+                  <TableHeader>
+                    <TableRow className="bg-muted">
+                      <TableHead className="text-foreground">Roll #</TableHead>
+                      <TableHead className="text-foreground">Name</TableHead>
+                      <TableHead className="text-foreground">Email</TableHead>
+                      <TableHead className="text-foreground">Batch</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(rawFileData.length > 0 ? rawFileData : fileData).slice(0, 3).map((row: any, idx: number) => {
+                      // If using raw file data (array format)
+                      if (Array.isArray(row)) {
+                        // Get column indices from fileColumns
+                        const rollIdx = fileColumns.indexOf(columnMapping.roll_number);
+                        const nameIdx = fileColumns.indexOf(columnMapping.student_name);
+                        const emailIdx = fileColumns.indexOf(columnMapping.email);
+                        const batchIdx = fileColumns.indexOf(columnMapping.batch);
+                        
+                        return (
+                          <TableRow key={idx} className="hover:bg-muted/50">
+                            <TableCell className="font-mono text-xs">{rollIdx >= 0 && row[rollIdx] ? row[rollIdx] : '—'}</TableCell>
+                            <TableCell className="text-xs">{nameIdx >= 0 && row[nameIdx] ? row[nameIdx] : '—'}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{emailIdx >= 0 && row[emailIdx] ? row[emailIdx] : '—'}</TableCell>
+                            <TableCell className="text-xs">{batchIdx >= 0 && row[batchIdx] ? row[batchIdx] : '—'}</TableCell>
+                          </TableRow>
+                        );
+                      }
+                      
+                      // If using parsed data (object format)
+                      return (
+                        <TableRow key={idx} className="hover:bg-muted/50">
+                          <TableCell className="font-mono text-xs">{row.rollNumber || row.roll_number || '—'}</TableCell>
+                          <TableCell className="text-xs">{row.name || row.student_name || '—'}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{row.email || '—'}</TableCell>
+                          <TableCell className="text-xs">{row.batch || '—'}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setMappingDialogOpen(false);
+              setFileData([]);
+              setRawFileData([]);
+              setFileColumns([]);
+              setColumnMapping({ roll_number: 'skip', student_name: 'skip', email: 'skip', batch: 'skip' });
+            }}>
+              Cancel & Clear
+            </Button>
+            <Button 
+              onClick={handleConfirmMapping}
+              disabled={!columnMapping.roll_number || !columnMapping.student_name}
+              className="gap-2"
+            >
+              <Check className="h-4 w-4" />
+              Import {fileData.length} Students
             </Button>
           </DialogFooter>
         </DialogContent>

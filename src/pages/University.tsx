@@ -30,6 +30,7 @@ import {
   Upload,
   FileText,
   Calendar,
+  CalendarIcon,
   BookOpen,
   Settings,
   BarChart3,
@@ -87,6 +88,16 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
     academic_year: '',
     year_number: 1
   });
+
+  const [semesterForm, setSemesterForm] = useState({
+    academic_year: '',
+    semester_number: 1,
+    semester_name: 'Sem A',
+    start_date: '',
+    end_date: ''
+  });
+
+  const [semesters, setSemesters] = useState([]);
 
   const [courseForm, setCourseForm] = useState({
     branch_id: '',
@@ -205,6 +216,16 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
           setSections(sectionsData || []);
           console.log('Fetched sections:', sectionsData);
           console.log('Branch IDs used for filter:', (branchesData || []).map(b => b.id));
+
+          // Fetch semesters
+          const { data: semestersData } = await supabase
+            .from('semesters')
+            .select('*')
+            .eq('university_id', userData.university_id)
+            .order('academic_year', { ascending: false })
+            .order('semester_number', { ascending: true });
+
+          setSemesters(semestersData || []);
         }
       }
     } catch (error) {
@@ -286,6 +307,72 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
     } catch (error) {
       console.error('Error creating year:', error);
       toast.error('Failed to create academic year');
+    }
+  };
+
+  const handleCreateSemester = async () => {
+    try {
+      if (!semesterForm.academic_year || !semesterForm.start_date || !semesterForm.end_date) {
+        toast.error('Please fill in all required fields');
+        return;
+      }
+
+      if (new Date(semesterForm.start_date) >= new Date(semesterForm.end_date)) {
+        toast.error('End date must be after start date');
+        return;
+      }
+
+      const { data: user } = await supabase.auth.getUser();
+      const { data: userData } = await supabase
+        .from('users')
+        .select('university_id')
+        .eq('id', user.user.id)
+        .single();
+
+      const { error } = await supabase
+        .from('semesters')
+        .insert({
+          university_id: userData.university_id,
+          academic_year: semesterForm.academic_year,
+          semester_number: semesterForm.semester_number,
+          semester_name: semesterForm.semester_name,
+          start_date: semesterForm.start_date,
+          end_date: semesterForm.end_date,
+          created_by: user.user.id
+        });
+
+      if (error) throw error;
+
+      toast.success('Semester created successfully');
+      setDialogOpen(false);
+      setSemesterForm({
+        academic_year: '',
+        semester_number: 1,
+        semester_name: '',
+        start_date: '',
+        end_date: ''
+      });
+      fetchData();
+    } catch (error) {
+      console.error('Error creating semester:', error);
+      toast.error('Failed to create semester');
+    }
+  };
+
+  const handleDeleteSemester = async (semesterId: string) => {
+    try {
+      const { error } = await supabase
+        .from('semesters')
+        .delete()
+        .eq('id', semesterId);
+
+      if (error) throw error;
+
+      toast.success('Semester deleted');
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting semester:', error);
+      toast.error('Failed to delete semester');
     }
   };
 
@@ -809,11 +896,12 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
             {/* Tabs */}
             <div className="bg-card rounded-lg border">
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-7">
+                <TabsList className="grid w-full grid-cols-8">
                   <TabsTrigger value="overview">Overview</TabsTrigger>
                   <TabsTrigger value="programs">Programs</TabsTrigger>
                   <TabsTrigger value="branches">Branches</TabsTrigger>
-                  <TabsTrigger value="years">Academic Years</TabsTrigger>
+                  <TabsTrigger value="years">Years</TabsTrigger>
+                  <TabsTrigger value="semesters">Semesters</TabsTrigger>
                   <TabsTrigger value="courses">Courses</TabsTrigger>
                   <TabsTrigger value="sections">Sections</TabsTrigger>
                   <TabsTrigger value="files">File Management</TabsTrigger>
@@ -1090,6 +1178,124 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
                     </Card>
                   ))}
                 </div>
+              </TabsContent>
+
+              {/* Semesters Tab */}
+              <TabsContent value="semesters" className="p-6 mt-0 space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-semibold">Semesters</h2>
+                  <Button onClick={() => openDialog('semester')}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Semester
+                  </Button>
+                </div>
+
+                {years.length === 0 ? (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Please create an academic year first before adding semesters.
+                    </AlertDescription>
+                  </Alert>
+                ) : semesters.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Calendar className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium text-muted-foreground mb-2">No Semesters Yet</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Create semesters to define teaching periods and manage academic calendars.
+                    </p>
+                    <Button onClick={() => openDialog('semester')}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create First Semester
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {years.map((year) => {
+                      const yearSemesters = semesters.filter(s => s.academic_year === year.academic_year);
+                      if (yearSemesters.length === 0) return null;
+
+                      return (
+                        <div key={year.id} className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-primary" />
+                            <h3 className="font-semibold text-lg">{year.academic_year}</h3>
+                            <Badge variant="outline" className="ml-auto">{yearSemesters.length} semesters</Badge>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {yearSemesters.map((semester) => {
+                              const totalDays = semester.total_days || 0;
+                              const workingDays = semester.working_days || 0;
+                              const classDays = semester.class_days || 0;
+                              const effectivePercentage = workingDays > 0 ? ((classDays / workingDays) * 100).toFixed(1) : 0;
+
+                              return (
+                                <Card key={semester.id} className="hover:shadow-md transition-shadow">
+                                  <CardHeader>
+                                    <div className="flex justify-between items-start gap-2">
+                                      <div className="flex-1">
+                                        <CardTitle className="text-base">{semester.semester_name}</CardTitle>
+                                        <CardDescription>
+                                          {new Date(semester.start_date).toLocaleDateString()} - {new Date(semester.end_date).toLocaleDateString()}
+                                        </CardDescription>
+                                      </div>
+                                      <Badge 
+                                        variant={semester.status === 'ongoing' ? 'default' : semester.status === 'completed' ? 'secondary' : 'outline'}
+                                        className="whitespace-nowrap"
+                                      >
+                                        {semester.status}
+                                      </Badge>
+                                    </div>
+                                  </CardHeader>
+                                  <CardContent className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-3 text-sm">
+                                      <div className="space-y-1 p-2 rounded bg-muted/50">
+                                        <p className="text-xs text-muted-foreground">Total Days</p>
+                                        <p className="font-semibold text-lg">{totalDays}</p>
+                                      </div>
+                                      <div className="space-y-1 p-2 rounded bg-muted/50">
+                                        <p className="text-xs text-muted-foreground">Working Days</p>
+                                        <p className="font-semibold text-lg">{workingDays}</p>
+                                      </div>
+                                      <div className="space-y-1 p-2 rounded bg-blue-500/10">
+                                        <p className="text-xs text-muted-foreground">Class Days</p>
+                                        <p className="font-semibold text-lg">{classDays}</p>
+                                      </div>
+                                      <div className="space-y-1 p-2 rounded bg-green-500/10">
+                                        <p className="text-xs text-muted-foreground">Effective</p>
+                                        <p className="font-semibold text-lg">{effectivePercentage}%</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex space-x-2 pt-2">
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="flex-1"
+                                        onClick={() => navigate(`/calendar?semester=${semester.id}`)}
+                                      >
+                                        <CalendarIcon className="w-3 h-3 mr-1" />
+                                        Calendar
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm"
+                                        className="text-destructive hover:text-destructive"
+                                        onClick={() => handleDeleteSemester(semester.id)}
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </TabsContent>
 
               {/* Courses Tab */}
@@ -1661,6 +1867,103 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
               </div>
               <DialogFooter>
                 <Button type="submit" onClick={handleCreateYear}>Create Year</Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {dialogType === 'semester' && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Add Semester</DialogTitle>
+                <DialogDescription>
+                  Create a new semester with start and end dates. The system will automatically calculate working days and class days.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="sem-year" className="text-right">
+                    Academic Year <span className="text-red-500">*</span>
+                  </Label>
+                  <Select 
+                    value={semesterForm.academic_year} 
+                    onValueChange={(value) => setSemesterForm({...semesterForm, academic_year: value})}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {years.map((year) => (
+                        <SelectItem key={year.id} value={year.academic_year}>
+                          {year.academic_year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="sem-number" className="text-right">
+                    Semester # <span className="text-red-500">*</span>
+                  </Label>
+                  <Select 
+                    value={semesterForm.semester_number.toString()} 
+                    onValueChange={(value) => {
+                      const num = parseInt(value);
+                      const semName = num % 2 === 1 ? 'Sem A' : 'Sem B';
+                      setSemesterForm({...semesterForm, semester_number: num, semester_name: semName});
+                    }}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select semester" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Sem A (1, 3, 5, 7...)</SelectItem>
+                      <SelectItem value="2">Sem B (2, 4, 6, 8...)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="sem-name" className="text-right">
+                    Semester Name <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="sem-name"
+                    value={semesterForm.semester_name}
+                    onChange={(e) => setSemesterForm({...semesterForm, semester_name: e.target.value})}
+                    className="col-span-3"
+                    placeholder="e.g., Fall 2024"
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="sem-start" className="text-right">
+                    Start Date <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="sem-start"
+                    type="date"
+                    value={semesterForm.start_date}
+                    onChange={(e) => setSemesterForm({...semesterForm, start_date: e.target.value})}
+                    className="col-span-3"
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="sem-end" className="text-right">
+                    End Date <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="sem-end"
+                    type="date"
+                    value={semesterForm.end_date}
+                    onChange={(e) => setSemesterForm({...semesterForm, end_date: e.target.value})}
+                    className="col-span-3"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="submit" onClick={handleCreateSemester}>Create Semester</Button>
               </DialogFooter>
             </>
           )}

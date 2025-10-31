@@ -27,6 +27,9 @@ interface TimetableCell {
   batches: string[];
   instructorIds: string[];
   roomId?: string;
+  day_of_week?: number;
+  start_time?: string;
+  end_time?: string;
 }
 
 interface Course {
@@ -115,9 +118,11 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
     }
   }, [currentPage, setCurrentPage]);
 
-  const fetchTimetableData = async (id: string) => {
+  const fetchTimetableData = async (id: string, showLoading: boolean = true) => {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
       
       // Fetch section details
       const { data: section } = await supabase
@@ -131,7 +136,7 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
       // Fetch courses for this section's branch and year
       const { data: branchCourses } = await supabase
         .from('courses')
-        .select('*')
+        .select('id, course_code, course_name, semester, branch_id')
         .eq('branch_id', section.branch_id)
         .order('course_code');
       
@@ -159,13 +164,51 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
         .select('*')
         .eq('section_id', id);
       
-      // TODO: Transform timetable entries to cell format
-      setTimetable(timetableEntries || []);
+      // Transform timetable entries to cell format
+      if (timetableEntries && timetableEntries.length > 0) {
+        console.log('Timetable entries fetched:', timetableEntries.length);
+        
+        const transformedCells = timetableEntries.map((entry, idx) => {
+          // Convert day_of_week (1-7, where 1=Monday) to dayIndex (0-6)
+          const dayIndex = entry.day_of_week - 1;
+          
+          // Find the time slot index based on start_time
+          // start_time format: "10:00:00" or "10:00"
+          const timeStr = entry.start_time;
+          const [hoursStr] = timeStr.split(':');
+          const hour = parseInt(hoursStr);
+          const timeSlotIndex = hour - 10; // Slots start at 10 AM
+          
+          console.log(`Entry ${idx}: day=${dayIndex}, time=${timeSlotIndex}, course=${entry.course_id}`);
+          
+          return {
+            id: entry.id,
+            dayIndex,
+            timeSlotIndex,
+            courseId: entry.course_id,
+            batches: entry.batches || [],
+            instructorIds: entry.instructor_ids || [],
+            roomId: entry.room_id,
+            day_of_week: entry.day_of_week,
+            start_time: entry.start_time,
+            end_time: entry.end_time,
+            section_id: entry.section_id
+          };
+        });
+        
+        console.log('Transformed cells:', transformedCells);
+        setTimetable(transformedCells);
+      } else {
+        console.log('No timetable entries found');
+        setTimetable([]);
+      }
     } catch (error) {
       console.error('Error fetching timetable data:', error);
       toast.error('Failed to load timetable data');
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   };
 
@@ -206,48 +249,180 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
     }
 
     try {
-      const newCell: TimetableCell = {
-        id: editingCell?.id || `cell-${Date.now()}`,
-        dayIndex: selectedDay,
-        timeSlotIndex: selectedSlot,
-        courseId: cellForm.courseId,
-        batches: cellForm.batches,
-        instructorIds: cellForm.instructorIds,
-        roomId: cellForm.roomId
+      const slot = timeSlots[selectedSlot];
+      const dayOfWeek = selectedDay + 1; // Convert 0-6 to 1-7
+      const course = courses.find(c => c.id === cellForm.courseId);
+      const semester = course?.semester || 1;
+      
+      // Convert 12-hour format to 24-hour format
+      // e.g., "11:00 AM" -> 11, "1:00 PM" -> 13
+      const convertTo24Hour = (timeStr: string) => {
+        const hourMatch = timeStr.match(/^(\d+):/);
+        const periodMatch = timeStr.match(/(AM|PM)$/i);
+        let hour = parseInt(hourMatch ? hourMatch[1] : '10');
+        const isPM = periodMatch && periodMatch[1].toUpperCase() === 'PM';
+        
+        if (isPM && hour !== 12) {
+          hour += 12; // Convert PM hours (1 PM = 13, 2 PM = 14, etc.)
+        } else if (!isPM && hour === 12) {
+          hour = 0; // 12 AM = 00
+        }
+        
+        return hour;
       };
-
-      if (editingCell) {
-        // Update existing
-        setTimetable(prev => prev.map(c => c.id === editingCell.id ? newCell : c));
-        toast.success('Cell updated');
+      
+      const startHour24 = convertTo24Hour(slot.time);
+      const endHour24 = convertTo24Hour(slot.endTime);
+      
+      const startTimeFormatted = `${String(startHour24).padStart(2, '0')}:00:00`;
+      const endTimeFormatted = `${String(endHour24).padStart(2, '0')}:00:00`;
+      
+      console.log('Time formatting:', { slotTime: slot.time, startHour24, startTimeFormatted, endTimeFormatted });
+      
+      if (editingCell && editingCell.id && !editingCell.id.startsWith('cell-')) {
+        // Existing cell - update it
+        console.log('Updating existing cell:', editingCell.id);
+        
+        const { error } = await supabase
+          .from('timetables')
+          .update({
+            course_id: cellForm.courseId,
+            instructor_ids: cellForm.instructorIds,
+            batches: cellForm.batches,
+            room_id: cellForm.roomId,
+            day_of_week: dayOfWeek,
+            start_time: startTimeFormatted,
+            end_time: endTimeFormatted,
+            semester: semester
+          })
+          .eq('id', editingCell.id);
+        
+        if (error) throw error;
+        toast.success('Cell updated successfully');
       } else {
-        // Add new
-        setTimetable(prev => [...prev, newCell]);
-        toast.success('Cell added');
+        // New cell - insert
+        console.log('Creating new cell:', { dayOfWeek, startTime: startTimeFormatted, courseId: cellForm.courseId });
+        
+        const insertPayload = {
+          section_id: sectionId,
+          course_id: cellForm.courseId,
+          instructor_ids: cellForm.instructorIds,
+          batches: cellForm.batches,
+          room_id: cellForm.roomId,
+          day_of_week: dayOfWeek,
+          start_time: startTimeFormatted,
+          end_time: endTimeFormatted,
+          academic_year: sectionData.years.academic_year,
+          semester: semester,
+          is_active: true
+        };
+        
+        console.log('Insert payload:', insertPayload);
+        
+        const { error, data } = await supabase
+          .from('timetables')
+          .insert([insertPayload]);
+        
+        if (error) {
+          console.error('Insert error full:', error);
+          console.error('Error code:', error.code);
+          console.error('Error message:', error.message);
+          console.error('Error details:', error.details);
+          console.error('Error hint:', error.hint);
+          throw error;
+        }
+        
+        console.log('Insert successful, returned data:', data);
+        toast.success('Cell created successfully');
       }
 
+      // Clear the form FIRST to close the edit panel immediately
       setEditingCell(null);
       setCellForm({ courseId: '', batches: [], instructorIds: [], roomId: '' });
+      setSelectedDay(-1);
+      setSelectedSlot(-1);
+      
+      // Then reload timetable from database without showing loading state
+      // Use a small delay to let state updates process first
+      console.log('Reloading timetable data...');
+      setTimeout(() => {
+        fetchTimetableData(sectionId, false).then(() => {
+          console.log('Reload complete');
+        });
+      }, 0);
     } catch (error) {
       console.error('Error saving cell:', error);
-      toast.error('Failed to save cell');
+      toast.error('Failed to save cell to database');
     }
   };
 
-  const handleDeleteCell = (dayIndex: number, timeSlotIndex: number) => {
-    setTimetable(prev => 
-      prev.filter(c => !(c.dayIndex === dayIndex && c.timeSlotIndex === timeSlotIndex))
-    );
-    toast.success('Cell deleted');
+  const handleDeleteCell = async (dayIndex: number, timeSlotIndex: number) => {
+    try {
+      const cell = timetable.find(
+        c => c.dayIndex === dayIndex && c.timeSlotIndex === timeSlotIndex
+      );
+      
+      if (cell && cell.id && !cell.id.startsWith('cell-')) {
+        // Delete from database
+        const { error } = await supabase
+          .from('timetables')
+          .delete()
+          .eq('id', cell.id);
+        
+        if (error) throw error;
+      }
+      
+      // Update local state
+      setTimetable(prev => 
+        prev.filter(c => !(c.dayIndex === dayIndex && c.timeSlotIndex === timeSlotIndex))
+      );
+      toast.success('Cell deleted');
+    } catch (error) {
+      console.error('Error deleting cell:', error);
+      toast.error('Failed to delete cell');
+    }
   };
 
   const getCellContent = (dayIndex: number, timeSlotIndex: number) => {
-    const cell = timetable.find(
-      c => c.dayIndex === dayIndex && c.timeSlotIndex === timeSlotIndex
-    );
+    const slot = timeSlots[timeSlotIndex];
     
-    if (!cell) return null;
+    // Convert slot time (e.g., "2:00 PM") to 24-hour format
+    const convertSlotTimeTo24Hour = (timeStr: string) => {
+      const hourMatch = timeStr.match(/^(\d+):/);
+      const isPM = timeStr.match(/(PM)$/i);
+      let hour = parseInt(hourMatch ? hourMatch[1] : '10');
+      
+      if (isPM && hour !== 12) {
+        hour += 12; // 1 PM → 13, 2 PM → 14, etc.
+      } else if (!isPM && hour === 12) {
+        hour = 0; // 12 AM → 0
+      }
+      
+      return hour;
+    };
+    
+    const slotHour24 = convertSlotTimeTo24Hour(slot.time);
+    
+    // Find ALL cells matching this day and time slot
+    const matchingCells = timetable.filter(c => {
+      if (c.dayIndex !== dayIndex) return false;
+      
+      // Match time slot by converting start_time hour to number and comparing
+      if (c.start_time) {
+        const [cellHourStr] = c.start_time.split(':');
+        const cellHour = parseInt(cellHourStr);
+        console.log(`Matching cell: slot hour=${slotHour24}, cell hour=${cellHour}`);
+        return cellHour === slotHour24;
+      }
+      
+      return c.timeSlotIndex === timeSlotIndex;
+    });
+    
+    if (matchingCells.length === 0) return null;
 
+    // If multiple cells, show the first one (or you could combine them)
+    const cell = matchingCells[0];
+    
     const course = courses.find(c => c.id === cell.courseId);
     const roomData = rooms.find(r => r.id === cell.roomId);
 
@@ -258,7 +433,8 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
         .map(id => instructors.find(i => i.id === id))
         .filter(Boolean),
       room: roomData,
-      cell
+      cell,
+      cellCount: matchingCells.length
     };
   };
 
@@ -312,11 +488,23 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
               </div>
               
               <Button
-                onClick={() => setEditMode(!editMode)}
+                onClick={() => {
+                  if (editingCell) {
+                    // If currently editing, save first
+                    handleSaveCell();
+                  } else {
+                    setEditMode(!editMode);
+                  }
+                }}
                 variant={editMode ? 'destructive' : 'default'}
                 className="gap-2"
               >
-                {editMode ? (
+                {editingCell ? (
+                  <>
+                    <Save className="h-4 w-4" />
+                    Save Edit
+                  </>
+                ) : editMode ? (
                   <>
                     <X className="h-4 w-4" />
                     Cancel Edit
@@ -383,36 +571,41 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
                                 }`}
                               >
                                 {cellContent ? (
-                                  <div className="space-y-1 text-xs">
-                                    {/* Course */}
-                                    <div className="font-semibold text-primary">
+                                  <div className="space-y-1 text-xs flex flex-col justify-center items-center min-h-[100px] text-center">
+                                    {/* Course Code - Line 1 */}
+                                    <div className="font-bold text-white text-sm">
                                       {cellContent.course?.course_code}
                                     </div>
                                     
-                                    {/* Batches */}
-                                    {cellContent.batches && cellContent.batches.length > 0 && (
-                                      <div className="text-muted-foreground">
-                                        Batches: {cellContent.batches.join(', ')}
+                                    {/* Batches - Line 2 */}
+                                    <div className="font-bold text-white text-xs">
+                                      {cellContent.batches && cellContent.batches.length > 0
+                                        ? cellContent.batches.join(', ').toUpperCase()
+                                        : 'N/A'}
+                                    </div>
+                                    
+                                    {/* Instructors - Line 3 */}
+                                    <div className="font-bold text-white text-xs">
+                                      {cellContent.instructors && cellContent.instructors.length > 0
+                                        ? cellContent.instructors.map(inst => inst?.full_name).join(', ').toUpperCase()
+                                        : 'N/A'}
+                                    </div>
+                                    
+                                    {/* Room - Line 4 */}
+                                    <div className="font-bold text-white text-xs">
+                                      {cellContent.room?.room_number}
+                                    </div>
+                                    
+                                    {/* Multiple cells indicator */}
+                                    {cellContent.cellCount && cellContent.cellCount > 1 && (
+                                      <div className="text-xs text-yellow-300 font-bold mt-1">
+                                        +{cellContent.cellCount - 1} more
                                       </div>
                                     )}
                                     
-                                    {/* Instructors */}
-                                    <div className="space-y-0.5">
-                                      {cellContent.instructors.map(inst => (
-                                        <div key={inst?.id} className="text-muted-foreground">
-                                          👨‍🏫 {inst?.full_name}
-                                        </div>
-                                      ))}
-                                    </div>
-                                    
-                                    {/* Room */}
-                                    <div className="text-muted-foreground">
-                                      📍 {cellContent.room?.room_number}
-                                    </div>
-                                    
                                     {/* Edit Delete Buttons */}
                                     {editMode && (
-                                      <div className="flex gap-1 mt-1 pt-1 border-t border-border/50">
+                                      <div className="flex gap-1 mt-2 pt-2 border-t border-white/20">
                                         <Button
                                           size="sm"
                                           variant="outline"
@@ -455,7 +648,7 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
             </Card>
 
             {/* Edit Panel */}
-            {editMode && editingCell !== undefined && (
+            {editMode && selectedDay !== -1 && (
               <Card className="border-primary/50 bg-primary/5">
                 <CardHeader>
                   <CardTitle className="text-base">
@@ -495,7 +688,7 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
                         <SelectValue placeholder="Select batches (optional)" />
                       </SelectTrigger>
                       <SelectContent>
-                        {['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(batch => (
+                        {['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3'].map(batch => (
                           <SelectItem key={batch} value={batch}>
                             <div className="flex items-center gap-2">
                               {cellForm.batches.includes(batch) && <span className="text-primary">✓</span>}
@@ -582,7 +775,7 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
                   <div className="flex gap-2 pt-4">
                     <Button onClick={handleSaveCell} className="flex-1 gap-2">
                       <Save className="h-4 w-4" />
-                      Save Cell
+                      {editingCell ? 'Save Changes' : 'Add Cell'}
                     </Button>
                     <Button
                       variant="outline"
@@ -592,7 +785,7 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
                       }}
                       className="flex-1"
                     >
-                      Cancel
+                      Clear
                     </Button>
                   </div>
                 </CardContent>
