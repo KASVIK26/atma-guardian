@@ -388,18 +388,16 @@ CREATE TABLE sensor_data (
 CREATE TABLE academic_calendar (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     university_id UUID NOT NULL REFERENCES universities(id) ON DELETE CASCADE,
-    academic_year TEXT NOT NULL,
-    semester INTEGER,
+    semester_id UUID NOT NULL REFERENCES semesters(id) ON DELETE CASCADE,
     event_date DATE NOT NULL,
     event_type calendar_event_enum NOT NULL,
     event_name TEXT NOT NULL,
     description TEXT,
-    is_university_wide BOOLEAN DEFAULT true,
-    affects_attendance BOOLEAN DEFAULT true,
-    created_by UUID REFERENCES users(id),
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
     
-    UNIQUE(university_id, event_date, event_name)
+    UNIQUE(semester_id, event_date, event_name)
 );
 
 -- Pressure Calibration Table
@@ -604,8 +602,11 @@ CREATE INDEX idx_audit_logs_table_record ON audit_logs(table_name, record_id);
 CREATE INDEX idx_audit_logs_university ON audit_logs(university_id, created_at);
 
 -- Academic Calendar
-CREATE INDEX idx_academic_calendar_date ON academic_calendar(university_id, event_date);
-CREATE INDEX idx_academic_calendar_affects_attendance ON academic_calendar(affects_attendance, event_date) WHERE affects_attendance = true;
+CREATE INDEX idx_academic_calendar_semester ON academic_calendar(semester_id);
+CREATE INDEX idx_academic_calendar_university ON academic_calendar(university_id);
+CREATE INDEX idx_academic_calendar_date ON academic_calendar(event_date);
+CREATE INDEX idx_academic_calendar_type ON academic_calendar(event_type);
+CREATE INDEX idx_academic_calendar_semester_date ON academic_calendar(semester_id, event_date, event_type) WHERE event_type IN ('holiday', 'vacation', 'exam');
 
 -- =============================================
 -- STORAGE BUCKETS INITIALIZATION

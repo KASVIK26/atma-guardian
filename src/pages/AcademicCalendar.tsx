@@ -42,6 +42,7 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
   const [isAddingHoliday, setIsAddingHoliday] = useState(false);
   const [newHolidayDate, setNewHolidayDate] = useState('');
   const [newHolidayName, setNewHolidayName] = useState('');
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // Force refresh trigger
 
   useEffect(() => {
     if (currentPage !== 'calendar') {
@@ -52,6 +53,7 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
 
   useEffect(() => {
     if (years.length > 0 && !selectedYear) {
+      console.log('📅 Setting default year and semester...');
       const currentYear = new Date().getFullYear();
       const currentMonth = new Date().getMonth();
       
@@ -61,27 +63,40 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
       
       const foundYear = years.find(y => y.academic_year === academicYear);
       if (foundYear) {
+        console.log('📅 Found current academic year:', foundYear.academic_year);
         setSelectedYear(foundYear.academic_year);
       } else {
+        console.log('📅 Using first available year:', years[0]?.academic_year);
         setSelectedYear(years[0]?.academic_year || '');
       }
       
       setSelectedSemester('1');
+      console.log('📅 Default values set');
     }
   }, [years, selectedYear]);
 
   useEffect(() => {
-    if (selectedYear && selectedSemester && universityId) {
+    console.log('📅 Semester/Year changed:', { selectedYear, selectedSemester, universityId, semestersCount: semesters.length });
+    
+    if (selectedYear && selectedSemester && universityId && semesters.length > 0) {
       const num = parseInt(selectedSemester);
       const sem = semesters.find(s => s.academic_year === selectedYear && s.semester_number === num);
+      
       if (sem) {
+        console.log('📅 Found semester:', { id: sem.id, start: sem.start_date, end: sem.end_date });
         setCurrentSemesterId(sem.id);
         setSemesterStart(sem.start_date);
         setSemesterEnd(sem.end_date);
-        fetchEvents();
+        
+        // Immediately fetch events with the semester ID
+        fetchEventsForSemester(sem.id);
+      } else {
+        console.log('❌ Semester not found for:', { year: selectedYear, semester: num });
       }
+    } else {
+      console.log('⏳ Waiting for required data...');
     }
-  }, [selectedYear, selectedSemester, semesters, universityId]);
+  }, [selectedYear, selectedSemester, semesters, universityId, refreshTrigger]);
 
   const fetchUniversityAndYears = async () => {
     try {
@@ -89,7 +104,6 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
       const { data: userData } = await supabase
         .from('users')
         .select('university_id')
-        .eq('id', user?.id)
         .single();
 
       if (userData) {
@@ -116,14 +130,59 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
     }
   };
 
+  // New function: Fetch events for a specific semester ID
+  const fetchEventsForSemester = async (semesterId: string) => {
+    try {
+      setLoading(true);
+      
+      // Force clear state before fetching new data
+      setEvents([]);
+      
+      if (!semesterId) {
+        console.log('⏳ No semester ID provided, skipping fetch');
+        setLoading(false);
+        return;
+      }
+
+      console.log('📅 Fetching events for semester ID:', semesterId);
+
+      const { data: eventsData, error } = await supabase
+        .from('academic_calendar')
+        .select('id, event_date, event_type, event_name, description')
+        .eq('semester_id', semesterId)
+        .order('event_date', { ascending: true });
+
+      if (error) {
+        console.error('❌ Fetch events error:', error);
+        toast.error('Failed to fetch events');
+        return;
+      }
+
+      console.log('✅ Events fetched:', eventsData?.length || 0, 'events');
+      
+      // Ensure state update with fresh data
+      setEvents(eventsData || []);
+    } catch (error) {
+      console.error('❌ Error fetching events:', error);
+      toast.error('Failed to fetch calendar events');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Original function: Fetch events using currentSemesterId state
   const fetchEvents = async () => {
     try {
       setLoading(true);
       
+      // Force clear state before fetching new data
+      setEvents([]);
+      
       if (!currentSemesterId) {
-        setEvents([]);
         return;
       }
+
+      console.log('📅 Fetching events for semester:', currentSemesterId);
 
       const { data: eventsData, error } = await supabase
         .from('academic_calendar')
@@ -132,13 +191,17 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
         .order('event_date', { ascending: true });
 
       if (error) {
-        console.error('Fetch events error:', error);
+        console.error('❌ Fetch events error:', error);
         toast.error('Failed to fetch events');
+        return;
       }
 
+      console.log('✅ Events fetched:', eventsData?.length || 0, 'events');
+      
+      // Ensure state update with fresh data
       setEvents(eventsData || []);
     } catch (error) {
-      console.error('Error fetching events:', error);
+      console.error('❌ Error fetching events:', error);
       toast.error('Failed to fetch calendar events');
     } finally {
       setLoading(false);
@@ -315,34 +378,38 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
         description: `Holiday - ${newHolidayName.trim()}`
       };
 
-      console.log('Adding holiday with payload:', insertPayload);
+      console.log('📝 Adding holiday with payload:', insertPayload);
 
-      // Insert without select to avoid RLS column enforcement
+      // Insert the new holiday
       const { data, error } = await supabase
         .from('academic_calendar')
         .insert([insertPayload], { count: 'exact' });
 
-      console.log('Insert response - Data:', data);
-      console.log('Insert response - Error:', error);
-
       if (error) {
-        console.error('Insert failed:', error);
-        
-        // Try fetching to see if it actually inserted despite error
-        setTimeout(() => fetchEvents(), 500);
-        
+        console.error('❌ Insert failed:', error);
         toast.error(`Error: ${error.message}`);
         return;
       }
 
-      console.log('Holiday added successfully');
-      toast.success('Holiday added successfully');
+      console.log('✅ Holiday added successfully:', data);
+      
+      // Clear form immediately
       setNewHolidayDate('');
       setNewHolidayName('');
       setIsAddingHoliday(false);
-      fetchEvents();
+      
+      // Show success toast
+      toast.success('Holiday added successfully!');
+      
+      // Force refresh with small delay to ensure DB has committed
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Increment refresh trigger to force component re-fetch
+      setRefreshTrigger(prev => prev + 1);
+      
+      console.log('✅ Calendar refresh triggered');
     } catch (error: any) {
-      console.error('Error adding holiday:', error?.message || error);
+      console.error('❌ Error adding holiday:', error?.message || error);
       toast.error(error?.message || 'Failed to add holiday');
     }
   };
@@ -363,7 +430,7 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
       if (error) throw error;
 
       toast.success('Event deleted');
-      fetchEvents();
+      setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Error deleting event:', error);
       toast.error('Failed to delete event');
@@ -387,7 +454,7 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
       toast.success('Holiday name updated');
       setEditingHolidayId(null);
       setEditingHolidayName('');
-      fetchEvents();
+      setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Error updating event:', error);
       toast.error('Failed to update holiday');

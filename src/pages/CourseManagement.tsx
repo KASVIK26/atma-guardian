@@ -72,11 +72,10 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
       
       if (!user) throw new Error('User not authenticated');
 
-      // Fetch user's university_id
+      // Fetch user's university_id - RLS handles filtering by auth.uid()
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('university_id')
-        .eq('id', user.id)
         .single();
 
       if (userError) throw userError;
@@ -120,15 +119,23 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
 
   const handleOpenDialog = (course?: Course) => {
     if (course) {
+      console.log('Opening edit dialog for course:', {
+        id: course.id,
+        course_type: course.course_type,
+        course_type_typeof: typeof course.course_type,
+        full_course: course
+      });
       setEditingCourse(course);
+      const courseTypeValue = course.course_type?.toLowerCase() || 'theory';
+      console.log('Setting course_type to:', courseTypeValue);
       setFormData({
         branch_id: course.branch_id,
         course_code: course.course_code,
         course_name: course.course_name,
         credits: course.credits,
-        course_type: course.course_type,
+        course_type: courseTypeValue,
         semester: course.semester,
-        description: course.description,
+        description: course.description || '',
         is_active: course.is_active
       });
     } else {
@@ -170,33 +177,62 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
       return;
     }
 
+    const validCourseTypes = ['theory', 'practical', 'project', 'seminar'];
+    const courseType = formData.course_type?.toLowerCase() || 'theory';
+    
+    if (!validCourseTypes.includes(courseType)) {
+      console.error('Invalid course type:', courseType);
+      toast.error(`Invalid course type: ${courseType}. Must be one of: ${validCourseTypes.join(', ')}`);
+      return;
+    }
+
     try {
       const dataToSave = {
         branch_id: formData.branch_id,
         course_code: formData.course_code,
         course_name: formData.course_name,
-        credits: formData.credits,
-        course_type: formData.course_type,
-        semester: formData.semester,
-        description: formData.description,
-        is_active: formData.is_active
+        credits: parseInt(String(formData.credits)) || 3,
+        course_type: courseType,
+        semester: parseInt(String(formData.semester)) || 1,
+        description: formData.description && formData.description.trim() ? formData.description.trim() : null,
+        is_active: Boolean(formData.is_active)
       };
+
+      console.log('Course form submission:', {
+        isEditing: !!editingCourse,
+        courseId: editingCourse?.id,
+        payload: dataToSave,
+        payloadTypes: {
+          branch_id: typeof dataToSave.branch_id,
+          course_code: typeof dataToSave.course_code,
+          course_name: typeof dataToSave.course_name,
+          credits: typeof dataToSave.credits,
+          course_type: typeof dataToSave.course_type,
+          semester: typeof dataToSave.semester,
+          description: typeof dataToSave.description,
+          is_active: typeof dataToSave.is_active
+        }
+      });
 
       if (editingCourse) {
         // Update existing course
-        const { error } = await supabase
+        console.log('Sending UPDATE request for course:', editingCourse.id);
+        const { error, data } = await supabase
           .from('courses')
           .update(dataToSave)
           .eq('id', editingCourse.id);
         
+        console.log('UPDATE response:', { error, data });
         if (error) throw error;
         toast.success('Course updated successfully');
       } else {
         // Create new course
-        const { error } = await supabase
+        console.log('Sending INSERT request for new course');
+        const { error, data } = await supabase
           .from('courses')
           .insert([dataToSave]);
         
+        console.log('INSERT response:', { error, data });
         if (error) throw error;
         toast.success('Course added successfully');
       }
@@ -205,6 +241,12 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
       fetchInitialData();
     } catch (error: any) {
       console.error('Error saving course:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        status: error.status,
+        details: error.details
+      });
       toast.error(error.message || 'Failed to save course');
     }
   };
@@ -573,14 +615,18 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
                 <label className="text-sm font-semibold">
                   Course Type <span className="text-red-500">*</span>
                 </label>
-                <Select value={formData.course_type} onValueChange={(value) => setFormData({ ...formData, course_type: value })}>
+                <Select value={formData.course_type} onValueChange={(value) => {
+                  console.log('Course type changed to:', value);
+                  setFormData({ ...formData, course_type: value });
+                }}>
                   <SelectTrigger className="border-border/50">
                     <SelectValue placeholder="Select course type" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="theory">Theory</SelectItem>
                     <SelectItem value="practical">Practical</SelectItem>
-                    <SelectItem value="hybrid">Hybrid</SelectItem>
+                    <SelectItem value="project">Project</SelectItem>
+                    <SelectItem value="seminar">Seminar</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

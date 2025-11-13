@@ -519,7 +519,7 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
             </div>
 
             {/* Main Timetable */}
-            <Card>
+            <Card className="overflow-hidden">
               <CardHeader>
                 <CardTitle>Weekly Timetable</CardTitle>
                 <CardDescription>
@@ -527,123 +527,123 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
                 </CardDescription>
               </CardHeader>
               
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    {/* Header */}
-                    <thead>
-                      <tr className="border-b-2 border-border">
-                        <th className="text-left px-4 py-3 font-semibold bg-muted/50 w-24">Time</th>
-                        {DAYS.map((day, idx) => (
-                          <th key={idx} className="text-center px-2 py-3 font-semibold bg-muted/50 min-w-[200px]">
-                            {day}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    
-                    {/* Body */}
-                    <tbody>
-                      {timeSlots.map((slot, slotIdx) => (
-                        <tr key={slot.id} className="border-b border-border">
-                          {/* Time Column */}
-                          <td className="px-4 py-3 font-mono text-sm bg-muted/20 font-semibold">
-                            <div className="text-center">{slot.time}</div>
-                            <div className="text-center text-xs text-muted-foreground">to</div>
-                            <div className="text-center">{slot.endTime}</div>
-                          </td>
-                          
-                          {/* Day Columns */}
-                          {DAYS.map((_, dayIdx) => {
-                            const cellContent = getCellContent(dayIdx, slotIdx);
-                            const isSelected = selectedDay === dayIdx && selectedSlot === slotIdx;
-                            
-                            return (
-                              <td
-                                key={`${dayIdx}-${slotIdx}`}
-                                onClick={() => handleCellClick(dayIdx, slotIdx)}
-                                className={`px-2 py-2 border-r border-border cursor-pointer transition-colors min-w-[200px] ${
-                                  editMode ? 'hover:bg-primary/10' : ''
-                                } ${
-                                  isSelected && editMode ? 'bg-primary/20 border-2 border-primary' : ''
-                                } ${
-                                  cellContent ? 'bg-green-50/20' : 'bg-background'
-                                }`}
-                              >
-                                {cellContent ? (
-                                  <div className="space-y-1 text-xs flex flex-col justify-center items-center min-h-[100px] text-center">
-                                    {/* Course Code - Line 1 */}
-                                    <div className="font-bold text-white text-sm">
-                                      {cellContent.course?.course_code}
-                                    </div>
-                                    
-                                    {/* Batches - Line 2 */}
-                                    <div className="font-bold text-white text-xs">
-                                      {cellContent.batches && cellContent.batches.length > 0
-                                        ? cellContent.batches.join(', ').toUpperCase()
-                                        : 'N/A'}
-                                    </div>
-                                    
-                                    {/* Instructors - Line 3 */}
-                                    <div className="font-bold text-white text-xs">
-                                      {cellContent.instructors && cellContent.instructors.length > 0
-                                        ? cellContent.instructors.map(inst => inst?.full_name).join(', ').toUpperCase()
-                                        : 'N/A'}
-                                    </div>
-                                    
-                                    {/* Room - Line 4 */}
-                                    <div className="font-bold text-white text-xs">
-                                      {cellContent.room?.room_number}
-                                    </div>
-                                    
-                                    {/* Multiple cells indicator */}
-                                    {cellContent.cellCount && cellContent.cellCount > 1 && (
-                                      <div className="text-xs text-yellow-300 font-bold mt-1">
-                                        +{cellContent.cellCount - 1} more
-                                      </div>
-                                    )}
-                                    
-                                    {/* Edit Delete Buttons */}
-                                    {editMode && (
-                                      <div className="flex gap-1 mt-2 pt-2 border-t border-white/20">
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          className="flex-1 h-6 text-xs"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleCellClick(dayIdx, slotIdx);
-                                          }}
-                                        >
-                                          Edit
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          variant="destructive"
-                                          className="flex-1 h-6 text-xs"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteCell(dayIdx, slotIdx);
-                                          }}
-                                        >
-                                          Del
-                                        </Button>
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : editMode ? (
-                                  <div className="text-center text-muted-foreground text-xs py-8">
-                                    Click to add
-                                  </div>
-                                ) : null}
-                              </td>
-                            );
-                          })}
-                        </tr>
+              <CardContent className="p-0 overflow-x-auto">
+                <table className="w-full border-collapse text-xs">
+                  {/* Header */}
+                  <thead>
+                    <tr className="border-b-2 border-border bg-muted/30">
+                      <th className="text-center px-2 py-2 font-bold bg-muted/50 whitespace-nowrap w-16 text-sm">Time</th>
+                      {DAYS.map((day, idx) => (
+                        <th key={idx} className="text-center px-1 py-2 font-semibold bg-muted/50 w-28 whitespace-nowrap text-xs">
+                          <div className="font-bold">{day.substring(0, 3)}</div>
+                        </th>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
+                    </tr>
+                  </thead>
+                  
+                  {/* Body */}
+                  <tbody>
+                    {timeSlots.map((slot, slotIdx) => (
+                      <tr key={slot.id} className="border-b border-border">
+                        {/* Time Column */}
+                        <td className="px-2 py-1 font-mono text-sm bg-muted/20 font-semibold whitespace-nowrap w-16">
+                          <div className="text-center leading-tight text-sm">{slot.time.substring(0, slot.time.length - 3)}</div>
+                          <div className="text-center text-sm leading-tight text-muted-foreground">{slot.endTime.substring(0, slot.endTime.length - 3)}</div>
+                        </td>
+                        
+                        {/* Day Columns */}
+                        {DAYS.map((_, dayIdx) => {
+                          const cellContent = getCellContent(dayIdx, slotIdx);
+                          const isSelected = selectedDay === dayIdx && selectedSlot === slotIdx;
+                          
+                          return (
+                            <td
+                              key={`${dayIdx}-${slotIdx}`}
+                              onClick={() => handleCellClick(dayIdx, slotIdx)}
+                              className={`px-1 py-1 border-r border-border cursor-pointer transition-colors w-28 h-24 align-top overflow-hidden ${
+                                editMode ? 'hover:bg-primary/10' : ''
+                              } ${
+                                isSelected && editMode ? 'bg-primary/20 border-2 border-primary' : ''
+                              } ${
+                                cellContent ? 'bg-green-50/20' : 'bg-background'
+                              }`}
+                            >
+                              {cellContent ? (
+                                <div className="space-y-0.5 text-xs flex flex-col justify-start items-center h-full text-center">
+                                  {/* Course Code */}
+                                  <div className="font-bold text-white text-xs leading-tight truncate w-full px-0.5">
+                                    {cellContent.course?.course_code}
+                                  </div>
+                                  
+                                  {/* Batches */}
+                                  <div className="font-semibold text-white text-xs leading-tight truncate w-full px-0.5">
+                                    {cellContent.batches && cellContent.batches.length > 0
+                                      ? cellContent.batches.join(',').toUpperCase()
+                                      : ''}
+                                  </div>
+                                  
+                                  {/* Instructors - Shortened */}
+                                  {cellContent.instructors && cellContent.instructors.length > 0 && (
+                                    <div className="font-semibold text-white text-xs leading-tight truncate w-full px-0.5">
+                                      {cellContent.instructors.map(inst => {
+                                        const parts = inst?.full_name.split(' ') || [];
+                                        return parts[0]?.substring(0, 1) + (parts[1]?.substring(0, 1) || '');
+                                      }).join(',')}
+                                    </div>
+                                  )}
+                                  
+                                  {/* Room - Shortened */}
+                                  <div className="font-semibold text-white text-xs leading-tight truncate w-full px-0.5">
+                                    {cellContent.room?.room_number}
+                                  </div>
+                                  
+                                  {/* Multiple cells indicator */}
+                                  {cellContent.cellCount && cellContent.cellCount > 1 && (
+                                    <div className="text-xs text-yellow-300 font-bold">
+                                      +{cellContent.cellCount - 1}
+                                    </div>
+                                  )}
+                                  
+                                  {/* Edit Delete Buttons */}
+                                  {editMode && (
+                                    <div className="flex gap-0.5 mt-auto pt-1 border-t border-white/20 w-full">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="flex-1 h-5 text-xs p-0 py-0.5"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleCellClick(dayIdx, slotIdx);
+                                        }}
+                                      >
+                                        E
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        className="flex-1 h-5 text-xs p-0 py-0.5"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteCell(dayIdx, slotIdx);
+                                        }}
+                                      >
+                                        D
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : editMode ? (
+                                <div className="text-center text-muted-foreground text-xs py-1 h-full flex items-center justify-center">
+                                  +
+                                </div>
+                              ) : null}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </CardContent>
             </Card>
 

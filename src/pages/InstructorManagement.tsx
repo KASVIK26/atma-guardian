@@ -119,21 +119,30 @@ function InstructorManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
         is_active: formData.is_active
       };
 
+      console.log('Instructor form submission:', {
+        isEditing: !!editingInstructor,
+        payload: dataToSave
+      });
+
       if (editingInstructor) {
         // Update existing instructor
-        const { error } = await supabase
+        console.log('Sending UPDATE request for instructor:', editingInstructor.id);
+        const { error, data } = await supabase
           .from('instructors')
           .update(dataToSave)
           .eq('id', editingInstructor.id);
         
+        console.log('UPDATE response:', { error, data });
         if (error) throw error;
         toast.success('Instructor updated successfully');
       } else {
         // Create new instructor
-        const { error } = await supabase
+        console.log('Sending INSERT request for new instructor');
+        const { error, data } = await supabase
           .from('instructors')
           .insert([dataToSave]);
         
+        console.log('INSERT response:', { error, data });
         if (error) throw error;
         toast.success('Instructor added successfully');
       }
@@ -142,6 +151,13 @@ function InstructorManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
       fetchInstructors();
     } catch (error: any) {
       console.error('Error saving instructor:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        status: error.status,
+        details: error.details,
+        hint: error.hint
+      });
       toast.error(error.message || 'Failed to save instructor');
     }
   };

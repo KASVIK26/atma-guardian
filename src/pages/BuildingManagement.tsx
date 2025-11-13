@@ -68,7 +68,6 @@ function BuildingManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurre
       const { data, error } = await supabase
         .from('users')
         .select('university_id')
-        .eq('id', user.id)
         .single();
 
       if (!error && data && data.university_id) {

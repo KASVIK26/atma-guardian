@@ -143,11 +143,10 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
       const { data: user } = await supabase.auth.getUser();
       
       if (user?.user) {
-        // Get user's university
+        // Get user's university - RLS policy handles filtering by auth.uid()
         const { data: userData } = await supabase
           .from('users')
           .select('university_id')
-          .eq('id', user.user.id)
           .single();
 
         if (userData?.university_id) {
@@ -242,7 +241,6 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
       const { data: userData } = await supabase
         .from('users')
         .select('university_id')
-        .eq('id', user.user.id)
         .single();
 
       const { error } = await supabase
@@ -288,7 +286,6 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
       const { data: userData } = await supabase
         .from('users')
         .select('university_id')
-        .eq('id', user.user.id)
         .single();
 
       const { error } = await supabase
@@ -325,8 +322,7 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
       const { data: user } = await supabase.auth.getUser();
       const { data: userData } = await supabase
         .from('users')
-        .select('university_id')
-        .eq('id', user.user.id)
+        .select('id, university_id')
         .single();
 
       const { error } = await supabase
@@ -338,7 +334,7 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
           semester_name: semesterForm.semester_name,
           start_date: semesterForm.start_date,
           end_date: semesterForm.end_date,
-          created_by: user.user.id
+          created_by: userData.id  // Use id from users table, not auth.user
         });
 
       if (error) throw error;
@@ -383,23 +379,53 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
         return;
       }
 
-      const { error } = await supabase
-        .from('courses')
-        .insert({
-          branch_id: courseForm.branch_id,
-          course_code: courseForm.course_code,
-          course_name: courseForm.course_name,
-          credits: courseForm.credits,
-          course_type: courseForm.course_type,
-          semester: courseForm.semester,
-          description: courseForm.description,
-          is_active: courseForm.is_active
-        });
+      const validCourseTypes = ['theory', 'practical', 'project', 'seminar'];
+      const courseType = courseForm.course_type?.toLowerCase() || 'theory';
+      
+      if (!validCourseTypes.includes(courseType)) {
+        console.error('Invalid course type:', courseType);
+        toast.error(`Invalid course type: ${courseType}. Must be one of: ${validCourseTypes.join(', ')}`);
+        return;
+      }
 
-      if (error) throw error;
+      const payload = {
+        branch_id: courseForm.branch_id,
+        course_code: courseForm.course_code,
+        course_name: courseForm.course_name,
+        credits: parseInt(String(courseForm.credits)) || 3,
+        course_type: courseType,
+        semester: parseInt(String(courseForm.semester)) || 1,
+        description: courseForm.description && courseForm.description.trim() ? courseForm.description.trim() : null,
+        is_active: Boolean(courseForm.is_active)
+      };
+
+      console.log('Creating course with payload:', payload);
+      console.log('Payload types:', {
+        branch_id: typeof payload.branch_id,
+        course_code: typeof payload.course_code,
+        course_name: typeof payload.course_name,
+        credits: typeof payload.credits,
+        course_type: typeof payload.course_type,
+        semester: typeof payload.semester,
+        description: typeof payload.description,
+        is_active: typeof payload.is_active
+      });
+
+      const { error, data } = await supabase
+        .from('courses')
+        .insert(payload);
+
+      console.log('Create course response:', { error, data });
+
+      if (error) {
+        console.error('Course creation error details:', error);
+        throw error;
+      }
 
       toast.success('Course created successfully');
       setDialogOpen(false);
+      setEditMode(false);
+      setSelectedItem(null);
       setCourseForm({
         branch_id: '',
         course_code: '',
@@ -419,29 +445,62 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
 
   const handleUpdateCourse = async () => {
     try {
-      if (!editingItem?.id || !courseForm.branch_id) {
+      if (!selectedItem?.id || !courseForm.branch_id) {
+        console.error('Invalid course data:', { editingItemId: selectedItem?.id, branch_id: courseForm.branch_id });
         toast.error('Invalid course data');
         return;
       }
 
-      const { error } = await supabase
-        .from('courses')
-        .update({
-          branch_id: courseForm.branch_id,
-          course_code: courseForm.course_code,
-          course_name: courseForm.course_name,
-          credits: courseForm.credits,
-          course_type: courseForm.course_type,
-          semester: courseForm.semester,
-          description: courseForm.description,
-          is_active: courseForm.is_active
-        })
-        .eq('id', editingItem.id);
+      const validCourseTypes = ['theory', 'practical', 'project', 'seminar'];
+      const courseType = courseForm.course_type?.toLowerCase() || 'theory';
+      
+      if (!validCourseTypes.includes(courseType)) {
+        console.error('Invalid course type:', courseType);
+        toast.error(`Invalid course type: ${courseType}. Must be one of: ${validCourseTypes.join(', ')}`);
+        return;
+      }
 
-      if (error) throw error;
+      const updateData = {
+        branch_id: courseForm.branch_id,
+        course_code: courseForm.course_code,
+        course_name: courseForm.course_name,
+        credits: parseInt(String(courseForm.credits)) || 3,
+        course_type: courseType,
+        semester: parseInt(String(courseForm.semester)) || 1,
+        description: courseForm.description && courseForm.description.trim() ? courseForm.description.trim() : null,
+        is_active: Boolean(courseForm.is_active)
+      };
+
+      console.log('Updating course ID:', selectedItem.id);
+      console.log('Update payload:', updateData);
+      console.log('Payload types:', {
+        branch_id: typeof updateData.branch_id,
+        course_code: typeof updateData.course_code,
+        course_name: typeof updateData.course_name,
+        credits: typeof updateData.credits,
+        course_type: typeof updateData.course_type,
+        semester: typeof updateData.semester,
+        description: typeof updateData.description,
+        is_active: typeof updateData.is_active
+      });
+
+      const { error, data } = await supabase
+        .from('courses')
+        .update(updateData)
+        .eq('id', selectedItem.id);
+
+      console.log('Update course response:', { error, data });
+
+      if (error) {
+        console.error('Course update error details:', error);
+        throw error;
+      }
 
       toast.success('Course updated successfully');
       setDialogOpen(false);
+      setEditMode(false);
+      setSelectedItem(null);
+      setEditingItem(null);
       setCourseForm({
         branch_id: '',
         course_code: '',
@@ -452,7 +511,6 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
         description: '',
         is_active: true
       });
-      setEditingItem(null);
       fetchData();
     } catch (error) {
       console.error('Error updating course:', error);
@@ -739,12 +797,17 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
         year_number: item.year_number
       });
     } else if (type === 'course') {
+      console.log('Loading course for edit:', {
+        id: item.id,
+        course_type: item.course_type,
+        course_type_lowercase: item.course_type?.toLowerCase()
+      });
       setCourseForm({
         branch_id: item.branch_id,
         course_code: item.course_code,
         course_name: item.course_name,
         credits: item.credits,
-        course_type: item.course_type,
+        course_type: item.course_type?.toLowerCase() || 'theory',
         semester: item.semester,
         description: item.description || '',
         is_active: item.is_active
@@ -2060,7 +2123,10 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
                   </Label>
                   <Select 
                     value={courseForm.course_type} 
-                    onValueChange={(value) => setCourseForm({...courseForm, course_type: value})}
+                    onValueChange={(value) => {
+                      console.log('University.tsx - Course type changed to:', value);
+                      setCourseForm({...courseForm, course_type: value});
+                    }}
                   >
                     <SelectTrigger className="col-span-3">
                       <SelectValue placeholder="Select type" />
@@ -2068,7 +2134,8 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
                     <SelectContent>
                       <SelectItem value="theory">Theory</SelectItem>
                       <SelectItem value="practical">Practical</SelectItem>
-                      <SelectItem value="hybrid">Hybrid</SelectItem>
+                      <SelectItem value="project">Project</SelectItem>
+                      <SelectItem value="seminar">Seminar</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

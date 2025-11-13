@@ -69,7 +69,6 @@ function Profile() {
             university_id,
             universities(name)
           `)
-          .eq('id', userData.user.id)
           .single();
 
         if (profileData) {
@@ -109,8 +108,7 @@ function Profile() {
           phone: editProfile.phone,
           address: editProfile.address,
           avatar_url: editProfile.avatar_url
-        })
-        .eq('id', user.id);
+        });
 
       if (error) throw error;
 

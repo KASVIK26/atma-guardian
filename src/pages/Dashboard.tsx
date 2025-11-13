@@ -75,7 +75,6 @@ function Dashboard({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, s
         supabase
           .from('users')
           .select('full_name, university_id')
-          .eq('id', data.user.id)
           .single()
           .then(({ data: profileData }) => {
             setProfile(profileData);

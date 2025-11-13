@@ -175,6 +175,8 @@ export interface LectureSession {
   scheduled_date: string;
   actual_start_time?: string;
   actual_end_time?: string;
+  scheduled_start_time?: string;
+  scheduled_end_time?: string;
   totp_secret?: string;
   current_totp?: string;
   totp_generated_at?: string;
@@ -185,6 +187,9 @@ export interface LectureSession {
   attendance_close_time?: string;
   max_late_minutes: number;
   notes?: string;
+  semester_id?: string;
+  is_special_class?: boolean;
+  otp_mode?: string;
   created_at: string;
   updated_at: string;
   // Relations
