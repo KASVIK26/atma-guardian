@@ -17,6 +17,16 @@ export const TimelineRow: React.FC<TimelineRowProps> = ({
   isCurrentHour = false,
 }) => {
   const filteredSessions = sessions.filter(session => {
+    // For special class sessions, use session.start_time directly
+    if (session.is_special_class || !session.timetables) {
+      const [startHour] = (session.start_time || '').split(':').map(Number);
+      const [endHour] = (session.end_time || '').split(':').map(Number) || [0];
+      
+      // Session occupies this hour if it starts before end of this hour and ends after start
+      return startHour <= hour && (endHour > hour || endHour === 0);
+    }
+    
+    // For timetable-based sessions, use timetable timing
     const timetable = session.timetables as any;
     if (!timetable?.start_time) return false;
     

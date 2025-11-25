@@ -14,11 +14,11 @@ interface FilterPanelProps {
   universityId: string;
   onProgramChange: (programId: string) => void;
   onBranchChange: (branchId: string) => void;
-  onYearChange: (yearId: string) => void;
+  onSemesterChange: (semesterId: string) => void;
   onSectionChange: (sectionId: string) => void;
   selectedProgram?: string;
   selectedBranch?: string;
-  selectedYear?: string;
+  selectedSemester?: string;
   selectedSection?: string;
 }
 
@@ -26,14 +26,14 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   universityId,
   onProgramChange,
   onBranchChange,
-  onYearChange,
+  onSemesterChange,
   onSectionChange,
   selectedProgram,
   selectedBranch,
-  selectedYear,
+  selectedSemester,
   selectedSection,
 }) => {
-  const { programs, branches, years, sections, loading, fetchBranches, fetchYears, fetchSections } =
+  const { programs, branches, years: semesters, sections, loading, fetchBranches, fetchSemesters, fetchSections } =
     useFilterOptions({ universityId });
 
   // Fetch branches when program changes
@@ -43,19 +43,19 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     }
   }, [selectedProgram, fetchBranches]);
 
-  // Fetch years when program changes
+  // Fetch semesters when program changes
   useEffect(() => {
-    if (universityId) {
-      fetchYears(universityId);
+    if (selectedProgram) {
+      fetchSemesters(selectedProgram);
     }
-  }, [universityId, fetchYears]);
+  }, [selectedProgram, fetchSemesters]);
 
-  // Fetch sections when branch or year changes
+  // Fetch sections when branch or semester changes
   useEffect(() => {
-    if (selectedBranch && selectedYear) {
-      fetchSections(selectedBranch, selectedYear);
+    if (selectedBranch && selectedSemester) {
+      fetchSections(selectedBranch, selectedSemester);
     }
-  }, [selectedBranch, selectedYear, fetchSections]);
+  }, [selectedBranch, selectedSemester, fetchSections]);
 
   return (
     <Card className="bg-slate-900 border-slate-700 shadow-lg">
@@ -116,22 +116,25 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           </Select>
         </div>
 
-        {/* Year Select */}
+        {/* Semester Select */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-300">Academic Year</label>
-          <Select value={selectedYear || ''} onValueChange={onYearChange}>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-300">
+            Semester
+            {loading && <Loader2 className="w-4 h-4 animate-spin text-blue-400" />}
+          </label>
+          <Select value={selectedSemester || ''} onValueChange={onSemesterChange}>
             <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-100">
-              <SelectValue placeholder="Select academic year" />
+              <SelectValue placeholder="Select semester" />
             </SelectTrigger>
             <SelectContent className="bg-slate-800 border-slate-700">
-              {years.length === 0 ? (
+              {semesters.length === 0 ? (
                 <SelectItem value="_empty" disabled>
-                  No years available
+                  {!selectedProgram ? 'Select a program first' : 'No semesters available'}
                 </SelectItem>
               ) : (
-                years.map((year: any) => (
-                  <SelectItem key={year.id} value={year.id}>
-                    <span className="text-slate-100">{year.academic_year}</span>
+                semesters.map((semester: any) => (
+                  <SelectItem key={semester.id} value={semester.id}>
+                    <span className="text-slate-100">{semester.name} ({semester.academic_year})</span>
                   </SelectItem>
                 ))
               )}
@@ -148,7 +151,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           <Select
             value={selectedSection || ''}
             onValueChange={onSectionChange}
-            disabled={!selectedBranch || !selectedYear || sections.length === 0}
+            disabled={!selectedBranch || !selectedSemester || sections.length === 0}
           >
             <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-100 disabled:opacity-50">
               <SelectValue placeholder="Select a section" />
@@ -156,7 +159,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             <SelectContent className="bg-slate-800 border-slate-700">
               {sections.length === 0 ? (
                 <SelectItem value="_empty" disabled>
-                  {!selectedBranch || !selectedYear ? 'Select branch and year first' : 'No sections available'}
+                  {!selectedBranch || !selectedSemester ? 'Select branch and semester first' : 'No sections available'}
                 </SelectItem>
               ) : (
                 sections.map((section: any) => (

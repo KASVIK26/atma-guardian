@@ -8,6 +8,8 @@ import Index from "./pages/Index";
 import Welcome from "./pages/Welcome";
 import Login from "./pages/auth/Login";
 import Signup from "./pages/auth/Signup";
+import ForgotPassword from "./pages/auth/ForgotPassword";
+import ResetCallback from "./pages/auth/ResetCallback";
 import Dashboard from "./pages/Dashboard";
 import UniversityStructure from "./pages/UniversityStructure";
 import NotFound from "./pages/NotFound";
@@ -23,9 +25,9 @@ import Notifications from "./pages/Notifications";
 import BuildingManagement from "./pages/BuildingManagement";
 import RoomManagement from "./pages/RoomManagement";
 import InstructorManagement from "./pages/InstructorManagement";
-import CourseManagement from "./pages/CourseManagement";
 import TimetableManagement from "./pages/TimetableManagement";
 import EnrollmentManagement from "./pages/EnrollmentManagement";
+import ManageStudents from "./pages/ManageStudents";
 import { SidebarItem } from "./components/layout/Sidebar";
 import { Users, GraduationCap, Clock, TrendingUp, Plus, Calendar, MapPin, Bell, Activity, BookOpen, UserCheck, AlertTriangle, ChevronRight, Building2, School, Settings as SettingsIcon, BarChart3, FileText, UserCog, Shield, Database, Wifi, Camera, Menu, X } from "lucide-react";
 
@@ -62,6 +64,8 @@ const AppRouter = () => {
 			<Route path="/" element={<Welcome />} />
 			<Route path="/auth/login" element={<Login />} />
 			<Route path="/auth/signup" element={<Signup />} />
+			<Route path="/auth/forgot-password" element={<ForgotPassword />} />
+			<Route path="/auth/reset-callback" element={<ResetCallback />} />
 			<Route path="/dashboard" element={<Dashboard sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/university" element={<University sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/buildings" element={<BuildingsRooms sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
@@ -71,9 +75,9 @@ const AppRouter = () => {
 			<Route path="/sessions" element={<LectureSessions sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/users" element={<UsersManagement sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/instructors" element={<InstructorManagement sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
-			<Route path="/courses" element={<CourseManagement sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/timetable" element={<TimetableManagement sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/enrollment" element={<EnrollmentManagement sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
+			<Route path="/manage-students" element={<ManageStudents sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/structure" element={<UniversityStructure sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/calendar" element={<AcademicCalendar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentPage={currentPage} setCurrentPage={setCurrentPage} sidebarItems={sidebarItems} />} />
 			<Route path="/profile" element={<Profile />} />

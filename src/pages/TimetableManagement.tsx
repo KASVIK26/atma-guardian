@@ -34,15 +34,14 @@ interface TimetableCell {
 
 interface Course {
   id: string;
-  course_code: string;
-  course_name: string;
-  semester: number;
+  code: string;
+  name: string;
 }
 
 interface Instructor {
   id: string;
-  full_name: string;
-  instructor_code: string;
+  code: string;
+  name: string;
 }
 
 interface Room {
@@ -52,12 +51,13 @@ interface Room {
   building?: { name: string };
 }
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+// Weekdays only (Mon-Fri, no Sat/Sun)
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
-// Generate time slots from 10 AM to 6 PM
+// Generate time slots from 9 AM to 6 PM
 const generateTimeSlots = (): TimeSlot[] => {
   const slots: TimeSlot[] = [];
-  let hour = 10;
+  let hour = 9;
   
   while (hour < 18) {
     const startHour = hour % 12 || 12;
@@ -124,62 +124,102 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
         setLoading(true);
       }
       
-      // Fetch section details
-      const { data: section } = await supabase
+      // Fetch section details (identified by program_id, branch_id, semester_id)
+      const { data: section, error: sectionError } = await supabase
         .from('sections')
-        .select('*, branches(name, code), years(academic_year, year_number)')
+        .select('id, code, name, university_id, program_id, branch_id, semester_id, batches')
         .eq('id', id)
         .single();
       
+      if (sectionError || !section) {
+        console.error('Error fetching section:', sectionError);
+        toast.error('Failed to load section data');
+        return;
+      }
+      
       setSectionData(section);
+      console.log('Section loaded:', { id: section.id, university_id: section.university_id, branch_id: section.branch_id, semester_id: section.semester_id });
 
-      // Fetch courses for this section's branch and year
-      const { data: branchCourses } = await supabase
+      // Fetch courses filtered by program_id and branch_id
+      const { data: universityCourses, error: coursesError } = await supabase
         .from('courses')
-        .select('id, course_code, course_name, semester, branch_id')
+        .select('id, code, name')
+        .eq('university_id', section.university_id)
+        .eq('program_id', section.program_id)
         .eq('branch_id', section.branch_id)
-        .order('course_code');
+        .order('code');
       
-      setCourses(branchCourses || []);
+      if (coursesError) {
+        console.error('Error fetching courses:', coursesError);
+      }
+      setCourses(universityCourses || []);
 
-      // Fetch instructors for this branch
-      const { data: branchInstructors } = await supabase
+      // Fetch instructors from instructors table
+      const { data: universityInstructors, error: instructorsError } = await supabase
         .from('instructors')
-        .select('id, full_name, instructor_code')
-        .order('full_name');
+        .select('id, name, code, email')
+        .eq('university_id', section.university_id)
+        .eq('is_active', true)
+        .order('name', { ascending: true });
       
-      setInstructors(branchInstructors || []);
+      if (instructorsError) {
+        console.error('Error fetching instructors:', instructorsError);
+      }
+      
+      const transformedInstructors: Instructor[] = (universityInstructors || []).map(instr => ({
+        id: instr.id,
+        code: instr.code || instr.email || instr.id,
+        name: instr.name
+      }));
+      setInstructors(transformedInstructors);
 
-      // Fetch rooms
-      const { data: allRooms } = await supabase
+      // Fetch rooms for this university
+      const { data: universityRoomsData, error: roomsError } = await supabase
         .from('rooms')
-        .select('*, building:buildings(name)')
+        .select('id, room_number, room_name')
+        .eq('university_id', section.university_id)
         .order('room_number');
       
-      setRooms(allRooms || []);
+      if (roomsError) {
+        console.error('Error fetching rooms:', roomsError);
+      }
+      
+      // Transform rooms data to match Room interface
+      const transformedRooms: Room[] = (universityRoomsData || []).map(room => ({
+        id: room.id,
+        room_number: room.room_number,
+        building: { name: room.room_name || room.room_number }
+      }));
+      setRooms(transformedRooms);
 
       // Fetch existing timetable entries
-      const { data: timetableEntries } = await supabase
+      const { data: timetableEntries, error: timetableError } = await supabase
         .from('timetables')
-        .select('*')
+        .select('id, course_id, section_id, room_id, instructor_ids, day_of_week, start_time, end_time, is_active, batches')
         .eq('section_id', id);
+      
+      if (timetableError) {
+        console.error('Error fetching timetable entries:', timetableError);
+      }
       
       // Transform timetable entries to cell format
       if (timetableEntries && timetableEntries.length > 0) {
         console.log('Timetable entries fetched:', timetableEntries.length);
         
         const transformedCells = timetableEntries.map((entry, idx) => {
-          // Convert day_of_week (1-7, where 1=Monday) to dayIndex (0-6)
-          const dayIndex = entry.day_of_week - 1;
+          // day_of_week is 0-4 (0=Monday, 4=Friday) from database
+          // Use it directly as dayIndex since DAYS array is 0-indexed
+          const dayIndex = entry.day_of_week;
           
           // Find the time slot index based on start_time
           // start_time format: "10:00:00" or "10:00"
+          // timeSlots start at 9 AM (hour 9), so hour 9 = index 0, hour 10 = index 1, etc.
           const timeStr = entry.start_time;
           const [hoursStr] = timeStr.split(':');
           const hour = parseInt(hoursStr);
-          const timeSlotIndex = hour - 10; // Slots start at 10 AM
+          const timeSlotIndex = hour - 9; // Slots start at 9 AM
           
-          console.log(`Entry ${idx}: day=${dayIndex}, time=${timeSlotIndex}, course=${entry.course_id}`);
+          console.log(`Entry ${idx}: day=${dayIndex}, time=${timeSlotIndex}, course=${entry.course_id}, instructor_ids=${entry.instructor_ids?.length}, batches=${entry.batches}`);
           
           return {
             id: entry.id,
@@ -250,9 +290,7 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
 
     try {
       const slot = timeSlots[selectedSlot];
-      const dayOfWeek = selectedDay + 1; // Convert 0-6 to 1-7
-      const course = courses.find(c => c.id === cellForm.courseId);
-      const semester = course?.semester || 1;
+      const dayOfWeek = selectedDay; // Use 0-4 index directly (0=Monday, 4=Friday)
       
       // Convert 12-hour format to 24-hour format
       // e.g., "11:00 AM" -> 11, "1:00 PM" -> 13
@@ -281,19 +319,18 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
       
       if (editingCell && editingCell.id && !editingCell.id.startsWith('cell-')) {
         // Existing cell - update it
-        console.log('Updating existing cell:', editingCell.id);
+        console.log('Updating existing cell:', editingCell.id, { dayOfWeek, selectedDay });
         
         const { error } = await supabase
           .from('timetables')
           .update({
             course_id: cellForm.courseId,
-            instructor_ids: cellForm.instructorIds,
-            batches: cellForm.batches,
-            room_id: cellForm.roomId,
+            instructor_ids: cellForm.instructorIds || [],
+            room_id: cellForm.roomId || null,
             day_of_week: dayOfWeek,
             start_time: startTimeFormatted,
             end_time: endTimeFormatted,
-            semester: semester
+            batches: cellForm.batches || null
           })
           .eq('id', editingCell.id);
         
@@ -301,38 +338,71 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
         toast.success('Cell updated successfully');
       } else {
         // New cell - insert
-        console.log('Creating new cell:', { dayOfWeek, startTime: startTimeFormatted, courseId: cellForm.courseId });
+        console.log('Creating new cell:', { selectedDay, dayOfWeek, startTime: startTimeFormatted, courseId: cellForm.courseId });
         
+        // Match the actual timetables schema:
+        // id, university_id, course_id, section_id, room_id, instructor_ids[], day_of_week, start_time, end_time, is_active, batches
         const insertPayload = {
-          section_id: sectionId,
+          university_id: sectionData?.university_id,
           course_id: cellForm.courseId,
-          instructor_ids: cellForm.instructorIds,
-          batches: cellForm.batches,
-          room_id: cellForm.roomId,
+          section_id: sectionId,
+          room_id: cellForm.roomId || null,
+          instructor_ids: cellForm.instructorIds || [],
           day_of_week: dayOfWeek,
           start_time: startTimeFormatted,
           end_time: endTimeFormatted,
-          academic_year: sectionData.years.academic_year,
-          semester: semester,
-          is_active: true
+          is_active: true,
+          batches: cellForm.batches || null
         };
+        
+        console.log('=== DETAILED INSERT LOGGING ===');
+        console.log('Payload object keys:', Object.keys(insertPayload));
+        console.log('Payload values:', insertPayload);
+        console.log('Section data:', sectionData);
+        console.log('Cell form:', cellForm);
+        console.log('Formatted time:', { startTimeFormatted, endTimeFormatted });
+        
+        // Verify no unexpected fields
+        const validFields = ['university_id', 'course_id', 'section_id', 'room_id', 'instructor_ids', 'day_of_week', 'start_time', 'end_time', 'is_active', 'batches'];
+        const payloadKeys = Object.keys(insertPayload);
+        const invalidKeys = payloadKeys.filter(key => !validFields.includes(key));
+        if (invalidKeys.length > 0) {
+          console.error('❌ INVALID KEYS DETECTED:', invalidKeys);
+          throw new Error(`Invalid payload keys: ${invalidKeys.join(', ')}`);
+        }
+        console.log('✅ All payload keys are valid');
         
         console.log('Insert payload:', insertPayload);
         
+        // Insert without specifying columns to avoid Supabase validation issues
+        console.log('Attempting insert...');
         const { error, data } = await supabase
           .from('timetables')
           .insert([insertPayload]);
         
         if (error) {
-          console.error('Insert error full:', error);
+          console.error('❌ INSERT ERROR ❌');
+          console.error('Error object:', error);
           console.error('Error code:', error.code);
           console.error('Error message:', error.message);
           console.error('Error details:', error.details);
           console.error('Error hint:', error.hint);
+          
+          // Additional debugging
+          console.error('Error keys:', Object.keys(error));
+          console.error('Error toString:', error.toString());
+          
+          // Check if error is related to semester_id
+          if (error.message?.includes('semester_id')) {
+            console.error('⚠️ ERROR IS ABOUT semester_id - this should not be in timetables table!');
+            console.error('Check: database triggers, foreign keys, or RLS policies');
+          }
+          
           throw error;
         }
         
-        console.log('Insert successful, returned data:', data);
+        console.log('✅ Insert successful!');
+        console.log('Returned data:', data);
         toast.success('Cell created successfully');
       }
 
@@ -363,6 +433,17 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
       );
       
       if (cell && cell.id && !cell.id.startsWith('cell-')) {
+        // Delete auto-generated lecture sessions first
+        const { error: lectureError } = await supabase
+          .from('lecture_sessions')
+          .delete()
+          .eq('timetable_id', cell.id);
+        
+        if (lectureError) {
+          console.warn('Warning deleting lecture sessions:', lectureError);
+          // Continue with timetable deletion even if lecture session deletion fails
+        }
+
         // Delete from database
         const { error } = await supabase
           .from('timetables')
@@ -481,7 +562,7 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
                   <h1 className="text-3xl font-bold">Timetable Management</h1>
                   {sectionData && (
                     <p className="text-muted-foreground mt-1">
-                      {sectionData.branches.code} - Section {sectionData.name} • Year {sectionData.years.year_number} ({sectionData.years.academic_year})
+                      Section {sectionData.code || sectionData.name}
                     </p>
                   )}
                 </div>
@@ -531,11 +612,12 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
                 <table className="w-full border-collapse text-xs">
                   {/* Header */}
                   <thead>
-                    <tr className="border-b-2 border-border bg-muted/30">
-                      <th className="text-center px-2 py-2 font-bold bg-muted/50 whitespace-nowrap w-16 text-sm">Time</th>
+                    <tr className="border-b-2 border-border bg-gradient-to-r from-primary/20 to-primary/10">
+                      <th className="text-center px-3 py-3 font-bold bg-primary/30 whitespace-nowrap w-20 text-sm border-r">Time</th>
                       {DAYS.map((day, idx) => (
-                        <th key={idx} className="text-center px-1 py-2 font-semibold bg-muted/50 w-28 whitespace-nowrap text-xs">
-                          <div className="font-bold">{day.substring(0, 3)}</div>
+                        <th key={idx} className="text-center px-2 py-3 font-bold bg-primary/20 flex-1 whitespace-nowrap text-sm border-r">
+                          <div className="font-bold text-primary">{day}</div>
+                          <div className="text-xs text-muted-foreground">{day.substring(0, 3)}</div>
                         </th>
                       ))}
                     </tr>
@@ -544,11 +626,11 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
                   {/* Body */}
                   <tbody>
                     {timeSlots.map((slot, slotIdx) => (
-                      <tr key={slot.id} className="border-b border-border">
+                      <tr key={slot.id} className="border-b border-border hover:bg-muted/50 transition-colors">
                         {/* Time Column */}
-                        <td className="px-2 py-1 font-mono text-sm bg-muted/20 font-semibold whitespace-nowrap w-16">
-                          <div className="text-center leading-tight text-sm">{slot.time.substring(0, slot.time.length - 3)}</div>
-                          <div className="text-center text-sm leading-tight text-muted-foreground">{slot.endTime.substring(0, slot.endTime.length - 3)}</div>
+                        <td className="px-3 py-3 font-mono text-sm bg-muted/30 font-semibold whitespace-nowrap w-20 border-r sticky left-0">
+                          <div className="text-center leading-tight font-bold text-base">{slot.time.substring(0, slot.time.length - 3)}</div>
+                          <div className="text-center text-xs leading-tight text-muted-foreground">{slot.endTime.substring(0, slot.endTime.length - 3)}</div>
                         </td>
                         
                         {/* Day Columns */}
@@ -560,81 +642,71 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
                             <td
                               key={`${dayIdx}-${slotIdx}`}
                               onClick={() => handleCellClick(dayIdx, slotIdx)}
-                              className={`px-1 py-1 border-r border-border cursor-pointer transition-colors w-28 h-24 align-top overflow-hidden ${
-                                editMode ? 'hover:bg-primary/10' : ''
+                              className={`px-2 py-2 border-r border-border cursor-pointer transition-all flex-1 align-top overflow-hidden min-h-32 ${
+                                editMode ? 'hover:bg-primary/20' : ''
                               } ${
-                                isSelected && editMode ? 'bg-primary/20 border-2 border-primary' : ''
+                                isSelected && editMode ? 'bg-primary/30 border-2 border-primary shadow-lg' : ''
                               } ${
-                                cellContent ? 'bg-green-50/20' : 'bg-background'
+                                cellContent ? 'bg-transparent' : 'bg-background hover:bg-muted/30'
                               }`}
                             >
                               {cellContent ? (
-                                <div className="space-y-0.5 text-xs flex flex-col justify-start items-center h-full text-center">
-                                  {/* Course Code */}
-                                  <div className="font-bold text-white text-xs leading-tight truncate w-full px-0.5">
-                                    {cellContent.course?.course_code}
+                                <div className="space-y-0.5 text-xs flex flex-col justify-center h-full text-center p-1.5">
+                                  {/* Course ID - Bold */}
+                                  <div className="font-bold text-white text-sm leading-tight">
+                                    {cellContent.course?.code}
                                   </div>
                                   
                                   {/* Batches */}
-                                  <div className="font-semibold text-white text-xs leading-tight truncate w-full px-0.5">
-                                    {cellContent.batches && cellContent.batches.length > 0
-                                      ? cellContent.batches.join(',').toUpperCase()
-                                      : ''}
-                                  </div>
-                                  
-                                  {/* Instructors - Shortened */}
-                                  {cellContent.instructors && cellContent.instructors.length > 0 && (
-                                    <div className="font-semibold text-white text-xs leading-tight truncate w-full px-0.5">
-                                      {cellContent.instructors.map(inst => {
-                                        const parts = inst?.full_name.split(' ') || [];
-                                        return parts[0]?.substring(0, 1) + (parts[1]?.substring(0, 1) || '');
-                                      }).join(',')}
+                                  {cellContent.batches && cellContent.batches.length > 0 && (
+                                    <div className="font-semibold text-foreground text-xs leading-tight">
+                                      {cellContent.batches.join(', ')}
                                     </div>
                                   )}
                                   
-                                  {/* Room - Shortened */}
-                                  <div className="font-semibold text-white text-xs leading-tight truncate w-full px-0.5">
-                                    {cellContent.room?.room_number}
-                                  </div>
+                                  {/* Instructor Codes */}
+                                  {cellContent.instructors && cellContent.instructors.length > 0 && (
+                                    <div className="font-semibold text-foreground text-xs leading-tight">
+                                      {cellContent.instructors.map(inst => inst?.code).join(', ')}
+                                    </div>
+                                  )}
                                   
-                                  {/* Multiple cells indicator */}
-                                  {cellContent.cellCount && cellContent.cellCount > 1 && (
-                                    <div className="text-xs text-yellow-300 font-bold">
-                                      +{cellContent.cellCount - 1}
+                                  {/* Room Code */}
+                                  {cellContent.room && (
+                                    <div className="font-semibold text-foreground text-xs leading-tight">
+                                      {cellContent.room?.room_number}
                                     </div>
                                   )}
                                   
                                   {/* Edit Delete Buttons */}
                                   {editMode && (
-                                    <div className="flex gap-0.5 mt-auto pt-1 border-t border-white/20 w-full">
+                                    <div className="flex gap-1 mt-2 pt-1 border-t border-border w-full">
                                       <Button
                                         size="sm"
-                                        variant="outline"
-                                        className="flex-1 h-5 text-xs p-0 py-0.5"
+                                        className="flex-1 h-6 text-xs py-0 bg-blue-600 hover:bg-blue-700 text-white font-bold"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           handleCellClick(dayIdx, slotIdx);
                                         }}
                                       >
-                                        E
+                                        Edit
                                       </Button>
                                       <Button
                                         size="sm"
-                                        variant="destructive"
-                                        className="flex-1 h-5 text-xs p-0 py-0.5"
+                                        className="flex-1 h-6 text-xs py-0 bg-red-600 hover:bg-red-700 text-white font-bold"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           handleDeleteCell(dayIdx, slotIdx);
                                         }}
                                       >
-                                        D
+                                        Delete
                                       </Button>
                                     </div>
                                   )}
                                 </div>
                               ) : editMode ? (
-                                <div className="text-center text-muted-foreground text-xs py-1 h-full flex items-center justify-center">
-                                  +
+                                <div className="text-center text-muted-foreground text-lg py-6 h-full flex items-center justify-center font-bold">
+                                  + Add Class
                                 </div>
                               ) : null}
                             </td>
@@ -667,7 +739,7 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
                       <SelectContent>
                         {courses.map(course => (
                           <SelectItem key={course.id} value={course.id}>
-                            {course.course_code} - {course.course_name}
+                            {course.code} - {course.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -688,14 +760,23 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
                         <SelectValue placeholder="Select batches (optional)" />
                       </SelectTrigger>
                       <SelectContent>
-                        {['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3'].map(batch => (
-                          <SelectItem key={batch} value={batch}>
-                            <div className="flex items-center gap-2">
-                              {cellForm.batches.includes(batch) && <span className="text-primary">✓</span>}
-                              {batch}
-                            </div>
+                        {sectionData?.batches && sectionData.batches.length > 0 ? (
+                          sectionData.batches.map((batchNum, idx) => {
+                            const batchLabel = `${sectionData.code}${idx + 1}`;
+                            return (
+                              <SelectItem key={batchLabel} value={batchLabel}>
+                                <div className="flex items-center gap-2">
+                                  {cellForm.batches.includes(batchLabel) && <span className="text-primary">✓</span>}
+                                  {batchLabel}
+                                </div>
+                              </SelectItem>
+                            );
+                          })
+                        ) : (
+                          <SelectItem value="default" disabled>
+                            No batches defined
                           </SelectItem>
-                        ))}
+                        )}
                       </SelectContent>
                     </Select>
                     {cellForm.batches.length > 0 && (
@@ -731,7 +812,7 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
                       <SelectContent>
                         {instructors.map(inst => (
                           <SelectItem key={inst.id} value={inst.id}>
-                            {inst.full_name} ({inst.instructor_code})
+                            {inst.name} ({inst.code})
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -743,7 +824,7 @@ function TimetableManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurr
                           const inst = instructors.find(i => i.id === id);
                           return (
                             <Badge key={id} variant="secondary">
-                              {inst?.full_name}
+                              {inst?.name}
                               <button onClick={() => setCellForm({...cellForm, instructorIds: cellForm.instructorIds.filter(i => i !== id)})} className="ml-1">
                                 ✕
                               </button>

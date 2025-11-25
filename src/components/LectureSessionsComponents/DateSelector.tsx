@@ -9,7 +9,7 @@ import { AlertCircle, Calendar as CalendarIcon } from 'lucide-react';
 
 interface DateSelectorProps {
   universityId: string;
-  academicYear: string;
+  semesterId: string;
   onDateChange: (date: string) => void;
   selectedDate?: string;
   disabled?: boolean;
@@ -17,13 +17,13 @@ interface DateSelectorProps {
 
 export const DateSelector: React.FC<DateSelectorProps> = ({
   universityId,
-  academicYear,
+  semesterId,
   onDateChange,
   selectedDate,
   disabled = false,
 }) => {
   const [showCalendar, setShowCalendar] = useState(false);
-  const { holidays, isHoliday } = useHolidays(universityId, academicYear);
+  const { holidays, isHoliday } = useHolidays(universityId, semesterId);
 
   const handleDateSelect = (date: Date) => {
     const dateString = format(date, 'yyyy-MM-dd');
@@ -118,10 +118,9 @@ export const DateSelector: React.FC<DateSelectorProps> = ({
         )}
 
         {/* Info Box */}
-        <div className="p-3 bg-blue-950 border border-blue-700 rounded-lg text-xs text-blue-100 space-y-1">
-          <div className="font-semibold">ℹ️ Academic Calendar Information</div>
-          <div>Year: <span className="text-blue-200 font-medium">{academicYear}</span></div>
-          <div>Total Holidays: <span className="text-blue-200 font-medium">{holidays.size}</span></div>
+        <div className="p-3 bg-slate-950/50 border border-slate-700/50 rounded-lg text-xs text-slate-300 space-y-1">
+          <div className="font-semibold">Semester Calendar Information</div>
+          <div>Total Holidays: <span className="text-slate-200 font-medium">{holidays.size}</span></div>
         </div>
       </CardContent>
     </Card>

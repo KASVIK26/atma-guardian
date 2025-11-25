@@ -41,17 +41,16 @@ export interface University {
 export interface User {
   id: string;
   email: string;
-  full_name: string;
+  first_name: string;
+  last_name: string;
   role: UserRole;
   university_id?: string;
   enrollment_id?: string;
   phone?: string;
   is_active: boolean;
-  profile_image_url?: string;
-  fcm_token?: string;
+  profile_picture_url?: string;
+  bio?: string;
   last_login?: string;
-  login_count: number;
-  preferences: Record<string, any>;
   created_at: string;
   updated_at: string;
   // Relations
@@ -171,29 +170,40 @@ export interface Timetable {
 
 export interface LectureSession {
   id: string;
-  timetable_id: string;
-  scheduled_date: string;
-  actual_start_time?: string;
-  actual_end_time?: string;
-  scheduled_start_time?: string;
-  scheduled_end_time?: string;
-  totp_secret?: string;
-  current_totp?: string;
-  totp_generated_at?: string;
-  totp_expires_at?: string;
-  totp_refresh_interval: number;
-  session_status: SessionStatus;
-  attendance_open: boolean;
-  attendance_close_time?: string;
-  max_late_minutes: number;
-  notes?: string;
-  semester_id?: string;
+  university_id: string;
+  timetable_id?: string;
+  course_id: string;
+  section_id: string;
+  room_id: string;
+  
+  // Instructors
+  instructor_id?: string;
+  instructor_ids?: string[];
+  
+  // Session details - ACTUAL schema columns
+  session_date: string;
+  start_time: string;
+  end_time: string;
+  
+  // Status flags
   is_special_class?: boolean;
-  otp_mode?: string;
+  totp_required?: boolean;
+  is_active?: boolean;
+  is_cancelled?: boolean;
+  
+  // Metadata
   created_at: string;
   updated_at: string;
-  // Relations
+  
+  // Relations (optional, for enriched data)
   timetables?: Timetable;
+  courses?: any;
+  users?: any[];
+  
+  // Optional helper fields for UI
+  totp_secret?: string;
+  current_totp?: string;
+}
 }
 
 export interface AttendanceRecord {

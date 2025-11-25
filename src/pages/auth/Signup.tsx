@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { authHelpers } from "@/lib/supabase";
+import { OTPVerificationModal } from "@/components/OTPVerificationModal";
 import type { SignupFormData } from "@/types/database";
 import { 
   ArrowLeft, 
@@ -29,6 +30,9 @@ const STEPS = [
 export default function Signup() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [showOTPModal, setShowOTPModal] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
+  const [signupDataCache, setSignupDataCache] = useState<any>(null);
   const navigate = useNavigate();
 
   // Form state
@@ -61,7 +65,8 @@ export default function Signup() {
     switch (step) {
       case 1:
         return formData.firstName && formData.lastName && formData.email && 
-               formData.password && formData.password === formData.confirmPassword;
+               formData.password && formData.password.length >= 8 &&
+               formData.password === formData.confirmPassword;
       case 2:
         return formData.universityName && formData.universityCode && formData.location;
       default:
@@ -70,10 +75,28 @@ export default function Signup() {
   };
 
   const handleNext = () => {
-    if (validateStep(currentStep) && currentStep < STEPS.length) {
+    if (!validateStep(currentStep)) {
+      // Specific error messages for Step 1
+      if (currentStep === 1) {
+        if (!formData.firstName || !formData.lastName) {
+          toast.error("Please enter your first and last name");
+        } else if (!formData.email) {
+          toast.error("Please enter your email");
+        } else if (!formData.password) {
+          toast.error("Please enter a password");
+        } else if (formData.password.length < 8) {
+          toast.error("Password must be at least 8 characters");
+        } else if (formData.password !== formData.confirmPassword) {
+          toast.error("Passwords do not match");
+        }
+      } else {
+        toast.error("Please fill in all required fields");
+      }
+      return;
+    }
+    
+    if (currentStep < STEPS.length) {
       setCurrentStep(currentStep + 1);
-    } else if (!validateStep(currentStep)) {
-      toast.error("Please fill in all required fields");
     }
   };
 
@@ -92,47 +115,29 @@ export default function Signup() {
     setIsLoading(true);
     try {
       console.log('Starting signup process...');
-      // Extract signup data (exclude confirmPassword)
       const { confirmPassword, ...signupData } = formData;
       
       console.log('Signup data prepared:', { ...signupData, password: '[HIDDEN]' });
       
-      const result = await authHelpers.registerAdmin(signupData);
+      // Step 1: Send OTP to email
+      console.log('Step 1: Sending OTP to email...');
+      await authHelpers.sendOTP(signupData.email);
       
-      if (result) {
-        console.log('Signup successful:', { userId: result.user?.id, universityId: result.university?.id });
-        toast.success("Account created successfully! Please check your email to verify your account.");
-        
-        // Navigate to a confirmation page or dashboard
-        if (result.session) {
-          navigate("/dashboard");
-        } else {
-          toast.info("Please check your email to verify your account before signing in.");
-          navigate("/auth/login");
-        }
-      }
+      // Store signup data for later use after OTP verification
+      setSignupDataCache(signupData);
+      setUserEmail(signupData.email);
+      setShowOTPModal(true);
+      
+      toast.success("OTP sent to your email!");
     } catch (error: any) {
-      console.error('Signup error details:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-        error: error
-      });
+      console.error('Signup error:', error);
       
-      let errorMessage = "Failed to create account. Please try again.";
+      let errorMessage = "Failed to send OTP. Please try again.";
       
-      // Handle specific error cases
       if (error.message?.includes('duplicate key') || error.code === '23505') {
         errorMessage = "An account with this email already exists.";
-      } else if (error.message?.includes('invalid input syntax')) {
-        errorMessage = "Please check your input and try again.";
-      } else if (error.message?.includes('permission denied') || error.code === '42501') {
-        errorMessage = "Permission denied. Please contact support.";
-      } else if (error.message?.includes('row-level security')) {
-        errorMessage = "Database configuration issue. Please contact support.";
-      } else if (error.message?.includes('network') || error.code === 'NETWORK_ERROR') {
-        errorMessage = "Network error. Please check your connection and try again.";
+      } else if (error.message?.includes('network')) {
+        errorMessage = "Network error. Please check your connection.";
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -140,6 +145,58 @@ export default function Signup() {
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleOTPVerificationComplete = async (verifiedUser: any) => {
+    try {
+      console.log('OTP verification successful! Creating university and user profile...');
+      setShowOTPModal(false);
+      
+      if (!signupDataCache) {
+        throw new Error('Signup data not found');
+      }
+
+      // Step 1: Create university FIRST (user doesn't exist in database yet, so user has no university_id)
+      console.log('Step 1: Creating university...');
+      const university = await authHelpers.createUniversity(signupDataCache);
+
+      // Step 2: Create user profile AFTER university exists
+      console.log('Step 2: Creating user profile...');
+      await authHelpers.createUserProfile(
+        verifiedUser.id,
+        signupDataCache.email,
+        signupDataCache.firstName,
+        signupDataCache.lastName,
+        university.id
+      );
+
+      console.log('✅ Registration complete!');
+      toast.success("Account created successfully! Welcome to ATMA Guardian.");
+      
+      // Clear cache
+      setSignupDataCache(null);
+      setUserEmail('');
+      
+      // Redirect to dashboard
+      setTimeout(() => {
+        navigate("/dashboard", { replace: true });
+      }, 1500);
+    } catch (error: any) {
+      console.error('Post-verification error:', error);
+      
+      let errorMessage = "Failed to complete setup. Please try again.";
+      
+      if (error.message?.includes('duplicate key')) {
+        errorMessage = "University already exists.";
+      } else if (error.message?.includes('permission denied') || error.code === '42501') {
+        errorMessage = "Permission denied. Please contact support.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
+      setShowOTPModal(false);
     }
   };
 
@@ -462,6 +519,23 @@ export default function Signup() {
           </Link>
         </div>
       </motion.div>
+
+      {/* OTP Verification Modal */}
+      <OTPVerificationModal
+        isOpen={showOTPModal}
+        email={userEmail}
+        onVerificationComplete={handleOTPVerificationComplete}
+        onCancel={() => {
+          setShowOTPModal(false);
+          setSignupDataCache(null);
+          setUserEmail('');
+        }}
+        onTimeout={() => {
+          toast.error('OTP verification timed out. Please try again.');
+        }}
+        verifyOTP={authHelpers.verifyOTP.bind(authHelpers)}
+        resendOTP={authHelpers.resendOTP.bind(authHelpers)}
+      />
     </div>
   );
 }

@@ -23,7 +23,7 @@ export const useTOTP = (lectureSessionId?: string, initialMode: 'static' | 'dyna
   const intervalRef = useRef<NodeJS.Timeout>();
   const refreshTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Fetch current TOTP code
+  // Fetch current TOTP code from totp_sessions table
   const fetchTOTP = useCallback(async () => {
     if (!lectureSessionId) {
       console.log('⏭️  No lectureSessionId provided to useTOTP');
@@ -36,35 +36,40 @@ export const useTOTP = (lectureSessionId?: string, initialMode: 'static' | 'dyna
     try {
       console.log('🔑 Fetching TOTP for session:', lectureSessionId);
       const { data, error: fetchError } = await supabase
-        .from('lecture_sessions')
-        .select('current_totp, totp_generated_at, totp_expires_at, otp_mode')
-        .eq('id', lectureSessionId)
+        .from('totp_sessions')
+        .select('code, generated_at, expires_at, totp_mode')
+        .eq('lecture_session_id', lectureSessionId)
+        .order('generated_at', { ascending: false })
+        .limit(1)
         .single();
 
-      if (fetchError) {
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        // PGRST116 = no rows returned, which is okay
         throw fetchError;
       }
 
-      if (data && data.current_totp) {
-        const generatedAt = new Date(data.totp_generated_at).getTime();
-        const expiresAt = new Date(data.totp_expires_at).getTime();
+      if (data && data.code) {
+        const generatedAt = new Date(data.generated_at).getTime();
+        const expiresAt = new Date(data.expires_at).getTime();
         const now = Date.now();
         const timeRemaining = Math.max(0, Math.ceil((expiresAt - now) / 1000));
 
         console.log('✅ TOTP fetched:', {
-          code: data.current_totp,
+          code: data.code,
           timeRemaining,
-          mode: data.otp_mode,
+          mode: data.totp_mode,
         });
 
         setTotp({
-          code: data.current_totp,
+          code: data.code,
           generatedAt,
           expiresAt,
-          mode: data.otp_mode || 'dynamic',
+          mode: (data.totp_mode as 'static' | 'dynamic') || 'dynamic',
           timeRemaining,
           isRefreshing: false,
         });
+      } else {
+        console.log('⏭️  No TOTP session found for lecture_session:', lectureSessionId);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch TOTP';
@@ -131,16 +136,19 @@ export const useTOTP = (lectureSessionId?: string, initialMode: 'static' | 'dyna
     }
   }, [lectureSessionId, totp?.mode]);
 
-  // Toggle OTP mode
+  // Update OTP mode for a TOTP session
   const toggleOTPMode = useCallback(async (newMode: 'static' | 'dynamic') => {
     if (!lectureSessionId) return;
 
     try {
       console.log('🔄 Toggling OTP mode to:', newMode);
+      // Update the most recent totp_sessions record for this lecture_session
       const { error } = await supabase
-        .from('lecture_sessions')
-        .update({ otp_mode: newMode })
-        .eq('id', lectureSessionId);
+        .from('totp_sessions')
+        .update({ totp_mode: newMode })
+        .eq('lecture_session_id', lectureSessionId)
+        .order('generated_at', { ascending: false })
+        .limit(1);
 
       if (error) {
         throw error;

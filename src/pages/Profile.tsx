@@ -32,16 +32,15 @@ function Profile() {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState({
-    full_name: '',
+    first_name: '',
+    last_name: '',
     email: '',
     phone: '',
-    address: '',
-    avatar_url: '',
+    profile_picture_url: '',
     role: '',
     university_name: '',
     department: '',
-    employee_id: '',
-    joined_date: ''
+    created_at: ''
   });
   const [editProfile, setEditProfile] = useState(profile);
 
@@ -58,13 +57,13 @@ function Profile() {
         const { data: profileData } = await supabase
           .from('users')
           .select(`
-            full_name,
+            first_name,
+            last_name,
             email,
             phone,
-            address,
-            avatar_url,
+            profile_picture_url,
             role,
-            employee_id,
+            department,
             created_at,
             university_id,
             universities(name)
@@ -73,16 +72,15 @@ function Profile() {
 
         if (profileData) {
           const profileInfo = {
-            full_name: profileData.full_name || '',
+            first_name: profileData.first_name || '',
+            last_name: profileData.last_name || '',
             email: profileData.email || userData.user.email || '',
             phone: profileData.phone || '',
-            address: profileData.address || '',
-            avatar_url: profileData.avatar_url || '',
+            profile_picture_url: profileData.profile_picture_url || '',
             role: profileData.role || 'user',
             university_name: (profileData.universities as any)?.name || '',
-            department: '',
-            employee_id: profileData.employee_id || '',
-            joined_date: profileData.created_at ? new Date(profileData.created_at).toLocaleDateString() : ''
+            department: profileData.department || '',
+            created_at: profileData.created_at ? new Date(profileData.created_at).toLocaleDateString() : ''
           };
           setProfile(profileInfo);
           setEditProfile(profileInfo);
@@ -104,10 +102,10 @@ function Profile() {
       const { error } = await supabase
         .from('users')
         .update({
-          full_name: editProfile.full_name,
+          first_name: editProfile.first_name,
+          last_name: editProfile.last_name,
           phone: editProfile.phone,
-          address: editProfile.address,
-          avatar_url: editProfile.avatar_url
+          profile_picture_url: editProfile.profile_picture_url
         });
 
       if (error) throw error;
@@ -163,9 +161,9 @@ function Profile() {
               <CardHeader className="text-center">
                 <div className="relative mx-auto mb-4">
                   <Avatar className="h-24 w-24 mx-auto">
-                    <AvatarImage src={profile.avatar_url || "/avatar.png"} alt={profile.full_name} />
+                    <AvatarImage src={profile.profile_picture_url || "/avatar.png"} alt={`${profile.first_name} ${profile.last_name}`} />
                     <AvatarFallback className="text-lg">
-                      {profile.full_name?.slice(0, 2) || "U"}
+                      {profile.first_name?.charAt(0)}{profile.last_name?.charAt(0) || "U"}
                     </AvatarFallback>
                   </Avatar>
                   <Button
@@ -176,7 +174,7 @@ function Profile() {
                     <Camera className="h-4 w-4" />
                   </Button>
                 </div>
-                <CardTitle className="text-xl">{profile.full_name || "User"}</CardTitle>
+                <CardTitle className="text-xl">{profile.first_name} {profile.last_name || "User"}</CardTitle>
                 <CardDescription>{profile.email}</CardDescription>
                 <div className="flex justify-center mt-2">
                   <Badge 
@@ -193,14 +191,12 @@ function Profile() {
                 </div>
                 <div className="flex items-center space-x-3">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">Joined {profile.joined_date}</span>
+                  <span className="text-sm">Joined {profile.created_at}</span>
                 </div>
-                {profile.employee_id && (
-                  <div className="flex items-center space-x-3">
-                    <Shield className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">ID: {profile.employee_id}</span>
-                  </div>
-                )}
+                <div className="flex items-center space-x-3">
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm capitalize">{profile.role}</span>
+                </div>
               </CardContent>
             </Card>
           </motion.div>
@@ -258,18 +254,35 @@ function Profile() {
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="full_name">Full Name</Label>
+                    <Label htmlFor="first_name">First Name</Label>
                     {isEditing ? (
                       <Input
-                        id="full_name"
-                        value={editProfile.full_name}
-                        onChange={(e) => setEditProfile(prev => ({ ...prev, full_name: e.target.value }))}
-                        placeholder="Enter your full name"
+                        id="first_name"
+                        value={editProfile.first_name}
+                        onChange={(e) => setEditProfile(prev => ({ ...prev, first_name: e.target.value }))}
+                        placeholder="Enter your first name"
                       />
                     ) : (
                       <div className="flex items-center space-x-2 p-2 bg-muted/50 rounded-md">
                         <User className="h-4 w-4 text-muted-foreground" />
-                        <span>{profile.full_name || "Not provided"}</span>
+                        <span>{profile.first_name || "Not provided"}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="last_name">Last Name</Label>
+                    {isEditing ? (
+                      <Input
+                        id="last_name"
+                        value={editProfile.last_name}
+                        onChange={(e) => setEditProfile(prev => ({ ...prev, last_name: e.target.value }))}
+                        placeholder="Enter your last name"
+                      />
+                    ) : (
+                      <div className="flex items-center space-x-2 p-2 bg-muted/50 rounded-md">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span>{profile.last_name || "Not provided"}</span>
                       </div>
                     )}
                   </div>
@@ -311,23 +324,6 @@ function Profile() {
                 </div>
 
                 <Separator />
-
-                <div className="space-y-2">
-                  <Label htmlFor="address">Address</Label>
-                  {isEditing ? (
-                    <Input
-                      id="address"
-                      value={editProfile.address}
-                      onChange={(e) => setEditProfile(prev => ({ ...prev, address: e.target.value }))}
-                      placeholder="Enter your address"
-                    />
-                  ) : (
-                    <div className="flex items-center space-x-2 p-2 bg-muted/50 rounded-md">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>{profile.address || "Not provided"}</span>
-                    </div>
-                  )}
-                </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="university">University</Label>

@@ -74,18 +74,18 @@ function Dashboard({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, s
       if (data.user) {
         supabase
           .from('users')
-          .select('full_name, university_id')
+          .select('first_name, last_name, university_id')
           .single()
           .then(({ data: profileData }) => {
             setProfile(profileData);
             if (profileData?.university_id) {
               supabase
                 .from('universities')
-                .select('code')
+                .select('short_code')
                 .eq('id', profileData.university_id)
                 .single()
                 .then(({ data: uniData }) => {
-                  setUniversityCode(uniData?.code || '');
+                  setUniversityCode(uniData?.short_code || '');
                 });
             }
           });
@@ -536,7 +536,7 @@ function Dashboard({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, s
                 {/* Header */}
                 <PageHeader
                   customGreeting={`Good ${timeOfDay}`}
-                  userName={profile?.full_name?.split(' ')[0] || 'User'}
+                  userName={profile?.first_name || 'User'}
                   timeOfDay={timeOfDay as "morning" | "afternoon" | "evening"}
                   description={`Here's what's happening at ${universityCode ? universityCode : 'your university'} today.`}
                 />

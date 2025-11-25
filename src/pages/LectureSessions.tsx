@@ -3,11 +3,11 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Navbar } from "@/components/layout/Navbar";
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { BookOpen, Plus } from "lucide-react";
+import { BookOpen, Plus, Trash2 } from "lucide-react";
 import { withAuth } from '../lib/withAuth';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useLectureSessions } from '@/hooks/useLectureSessions';
+import { useLectureSessions, useFilterOptions } from '@/hooks/useLectureSessions';
 import { FilterPanel } from '@/components/LectureSessionsComponents/FilterPanel';
 import { DateSelector } from '@/components/LectureSessionsComponents/DateSelector';
 import { TimelineView } from '@/components/LectureSessionsComponents/TimelineView';
@@ -15,6 +15,17 @@ import { LectureSessionDetailModal } from '@/components/LectureSessionsComponent
 import { CreateSessionModal } from '@/components/LectureSessionsComponents/CreateSessionModal';
 import { LectureSession } from '@/types/database';
 import { format } from 'date-fns';
+import { toast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 function LectureSessions({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, sidebarItems }) {
   const [user, setUser] = useState<any>(null);
@@ -22,7 +33,8 @@ function LectureSessions({ sidebarOpen, setSidebarOpen, currentPage, setCurrentP
   // State for filters and selection
   const [selectedProgram, setSelectedProgram] = useState<string>('');
   const [selectedBranch, setSelectedBranch] = useState<string>('');
-  const [selectedYear, setSelectedYear] = useState<string>('');
+  const [selectedSemester, setSelectedSemester] = useState<string>('');
+  const [selectedSemesterData, setSelectedSemesterData] = useState<any>(null);
   const [selectedSection, setSelectedSection] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   
@@ -30,6 +42,9 @@ function LectureSessions({ sidebarOpen, setSidebarOpen, currentPage, setCurrentP
   const [selectedSession, setSelectedSession] = useState<LectureSession | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [editingSession, setEditingSession] = useState<LectureSession | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Get current user
   useEffect(() => {
@@ -53,8 +68,16 @@ function LectureSessions({ sidebarOpen, setSidebarOpen, currentPage, setCurrentP
     date: selectedDate,
   });
 
-  // Get academic year from selected year (would need actual implementation)
-  const academicYear = '2024-2025'; // Default, should be derived from selectedYear
+  // Fetch semester details when semester changes
+  const { getSemesterById } = useFilterOptions({ universityId: user?.university_id || '' });
+  
+  useEffect(() => {
+    if (selectedSemester) {
+      getSemesterById(selectedSemester).then(data => {
+        setSelectedSemesterData(data);
+      });
+    }
+  }, [selectedSemester, getSemesterById]);
 
   useEffect(() => {
     if (currentPage !== 'sessions') {
@@ -67,11 +90,52 @@ function LectureSessions({ sidebarOpen, setSidebarOpen, currentPage, setCurrentP
     setShowDetailModal(true);
   };
 
+  const handleEditSession = () => {
+    if (selectedSession) {
+      setEditingSession(selectedSession);
+      setShowCreateModal(true);
+      setShowDetailModal(false);
+    }
+  };
+
+  const handleDeleteSession = async () => {
+    if (!selectedSession) return;
+
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('lecture_sessions')
+        .delete()
+        .eq('id', selectedSession.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Special class session deleted successfully',
+      });
+
+      setShowDeleteDialog(false);
+      setShowDetailModal(false);
+      refetch();
+    } catch (err) {
+      console.error('Error deleting session:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete special class session',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleCreateSessionSuccess = () => {
+    setEditingSession(null);
     refetch();
   };
 
-  const isFiltersComplete = selectedProgram && selectedBranch && selectedYear && selectedSection;
+  const isFiltersComplete = selectedProgram && selectedBranch && selectedSemester && selectedSection;
 
   return (
     <div className="min-h-screen bg-slate-950 flex">
@@ -113,11 +177,11 @@ function LectureSessions({ sidebarOpen, setSidebarOpen, currentPage, setCurrentP
                   universityId={user?.university_id || ''}
                   selectedProgram={selectedProgram}
                   selectedBranch={selectedBranch}
-                  selectedYear={selectedYear}
+                  selectedSemester={selectedSemester}
                   selectedSection={selectedSection}
                   onProgramChange={setSelectedProgram}
                   onBranchChange={setSelectedBranch}
-                  onYearChange={setSelectedYear}
+                  onSemesterChange={setSelectedSemester}
                   onSectionChange={setSelectedSection}
                 />
 
@@ -125,7 +189,7 @@ function LectureSessions({ sidebarOpen, setSidebarOpen, currentPage, setCurrentP
                 {isFiltersComplete && (
                   <DateSelector
                     universityId={user?.university_id || ''}
-                    academicYear={academicYear}
+                    semesterId={selectedSemester}
                     selectedDate={selectedDate}
                     onDateChange={setSelectedDate}
                   />
@@ -168,6 +232,8 @@ function LectureSessions({ sidebarOpen, setSidebarOpen, currentPage, setCurrentP
         session={selectedSession}
         open={showDetailModal}
         onOpenChange={setShowDetailModal}
+        onEdit={handleEditSession}
+        onDelete={() => setShowDeleteDialog(true)}
       />
 
       {selectedSection && (
@@ -176,8 +242,31 @@ function LectureSessions({ sidebarOpen, setSidebarOpen, currentPage, setCurrentP
           open={showCreateModal}
           onOpenChange={setShowCreateModal}
           onSuccess={handleCreateSessionSuccess}
+          editingSession={editingSession}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent className="bg-slate-800 border-slate-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-slate-100">Delete Special Class</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              Are you sure you want to delete this special class session? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-700">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteSession}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

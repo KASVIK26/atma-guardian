@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Search, BookMarked, Filter } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, BookMarked, Filter, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -14,13 +14,15 @@ import { withAuth } from '../lib/withAuth';
 
 interface Course {
   id: string;
+  university_id: string;
+  program_id: string;
   branch_id: string;
-  course_code: string;
-  course_name: string;
-  credits: number;
+  code: string;
+  name: string;
+  description: string;
+  credit_hours: number;
   course_type: string;
   semester: number;
-  description: string;
   is_active: boolean;
   created_at: string;
 }
@@ -29,6 +31,7 @@ interface Branch {
   id: string;
   name: string;
   code: string;
+  program_id: string;
 }
 
 interface Year {
@@ -39,21 +42,26 @@ interface Year {
 
 function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, sidebarItems }) {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [programs, setPrograms] = useState<any[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [years, setYears] = useState<Year[]>([]);
+  const [universityId, setUniversityId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedProgram, setSelectedProgram] = useState<string>('');
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [selectedYear, setSelectedYear] = useState<string>('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
+  const [expandedBranches, setExpandedBranches] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
+    program_id: '',
     branch_id: '',
     course_code: '',
     course_name: '',
     credits: 3,
     course_type: 'theory',
-    semester: 1,
     description: '',
     is_active: true
   });
@@ -81,6 +89,17 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
       if (userError) throw userError;
       
       const universityId = userData?.university_id;
+      setUniversityId(universityId);
+
+      // Fetch programs for this university
+      const { data: programsData, error: programsError } = await supabase
+        .from('programs')
+        .select('id, code, name')
+        .eq('university_id', universityId)
+        .order('name');
+
+      if (programsError) throw programsError;
+      setPrograms(programsData || []);
 
       // Fetch years for this university
       const { data: yearsData, error: yearsError } = await supabase
@@ -95,7 +114,7 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
       // Fetch branches for programs in this university
       const { data: branchesData, error: branchesError } = await supabase
         .from('branches')
-        .select('id, name, code')
+        .select('id, name, code, program_id')
         .order('name');
 
       if (branchesError) throw branchesError;
@@ -129,24 +148,24 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
       const courseTypeValue = course.course_type?.toLowerCase() || 'theory';
       console.log('Setting course_type to:', courseTypeValue);
       setFormData({
+        program_id: course.program_id,
         branch_id: course.branch_id,
-        course_code: course.course_code,
-        course_name: course.course_name,
-        credits: course.credits,
+        course_code: course.code,
+        course_name: course.name,
+        credits: course.credit_hours,
         course_type: courseTypeValue,
-        semester: course.semester,
         description: course.description || '',
         is_active: course.is_active
       });
     } else {
       setEditingCourse(null);
       setFormData({
+        program_id: '',
         branch_id: selectedBranch || '',
         course_code: '',
         course_name: '',
         credits: 3,
         course_type: 'theory',
-        semester: 1,
         description: '',
         is_active: true
       });
@@ -158,12 +177,12 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
     setIsDialogOpen(false);
     setEditingCourse(null);
     setFormData({
+      program_id: '',
       branch_id: selectedBranch || '',
       course_code: '',
       course_name: '',
       credits: 3,
       course_type: 'theory',
-      semester: 1,
       description: '',
       is_active: true
     });
@@ -172,6 +191,10 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!formData.program_id) {
+      toast.error('Please select a program');
+      return;
+    }
     if (!formData.branch_id) {
       toast.error('Please select a branch');
       return;
@@ -188,12 +211,13 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
 
     try {
       const dataToSave = {
+        university_id: universityId,
+        program_id: formData.program_id,
         branch_id: formData.branch_id,
-        course_code: formData.course_code,
-        course_name: formData.course_name,
-        credits: parseInt(String(formData.credits)) || 3,
+        code: formData.course_code,
+        name: formData.course_name,
+        credit_hours: parseInt(String(formData.credits)) || 3,
         course_type: courseType,
-        semester: parseInt(String(formData.semester)) || 1,
         description: formData.description && formData.description.trim() ? formData.description.trim() : null,
         is_active: Boolean(formData.is_active)
       };
@@ -203,12 +227,12 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
         courseId: editingCourse?.id,
         payload: dataToSave,
         payloadTypes: {
+          program_id: typeof dataToSave.program_id,
           branch_id: typeof dataToSave.branch_id,
-          course_code: typeof dataToSave.course_code,
-          course_name: typeof dataToSave.course_name,
-          credits: typeof dataToSave.credits,
+          code: typeof dataToSave.code,
+          name: typeof dataToSave.name,
+          credit_hours: typeof dataToSave.credit_hours,
           course_type: typeof dataToSave.course_type,
-          semester: typeof dataToSave.semester,
           description: typeof dataToSave.description,
           is_active: typeof dataToSave.is_active
         }
@@ -269,23 +293,39 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
     }
   };
 
+  const toggleProgram = (programId: string) => {
+    const newExpanded = new Set(expandedPrograms);
+    if (newExpanded.has(programId)) {
+      newExpanded.delete(programId);
+    } else {
+      newExpanded.add(programId);
+    }
+    setExpandedPrograms(newExpanded);
+  };
+
+  const toggleBranch = (branchId: string) => {
+    const newExpanded = new Set(expandedBranches);
+    if (newExpanded.has(branchId)) {
+      newExpanded.delete(branchId);
+    } else {
+      newExpanded.add(branchId);
+    }
+    setExpandedBranches(newExpanded);
+  };
+
   const filteredCourses = courses.filter(course => {
     const matchesSearch = 
-      course.course_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      course.course_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      course.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       course.course_type.toLowerCase().includes(searchTerm.toLowerCase());
     
+    const matchesProgram = !selectedProgram || course.program_id === selectedProgram;
     const matchesBranch = !selectedBranch || course.branch_id === selectedBranch;
     
-    // Filter by year based on semester (assuming standard 2-semester academic year)
-    const matchesYear = !selectedYear || (() => {
-      // Semesters 1-2 = Year 1, 3-4 = Year 2, etc.
-      const courseYear = Math.ceil(course.semester / 2);
-      const year = years.find(y => y.id === selectedYear);
-      return year && courseYear === year.year_number;
-    })();
+    // Year filter disabled - courses no longer have semester field
+    const matchesYear = true;
 
-    return matchesSearch && matchesBranch && matchesYear;
+    return matchesSearch && matchesProgram && matchesBranch && matchesYear;
   });
 
   const getBranchDisplay = (branchId: string) => {
@@ -328,7 +368,7 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
                 <span>Filters</span>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {/* Search Input */}
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground">Search Courses</label>
@@ -342,6 +382,24 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
                       className="pl-10 bg-input border-border/50"
                     />
                   </div>
+                </div>
+
+                {/* Program Filter */}
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">Program</label>
+                  <Select value={selectedProgram} onValueChange={setSelectedProgram}>
+                    <SelectTrigger className="bg-input border-border/50">
+                      <SelectValue placeholder="All Programs" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">All Programs</SelectItem>
+                      {programs.map((program) => (
+                        <SelectItem key={program.id} value={program.id}>
+                          {program.code} - {program.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Branch Filter */}
@@ -414,17 +472,10 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
               </div>
             </div>
 
-            {/* Courses Table */}
-            <div className="bg-card rounded-lg shadow border border-border overflow-hidden">
-              {loading ? (
-                <div className="p-8 text-center">
-                  <div className="inline-flex flex-col items-center gap-2">
-                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary"></div>
-                    <p className="text-sm text-muted-foreground">Loading courses...</p>
-                  </div>
-                </div>
-              ) : filteredCourses.length === 0 ? (
-                <div className="p-8 text-center">
+            {/* Courses Hierarchical Card View */}
+            <div className="space-y-4">
+              {filteredCourses.length === 0 ? (
+                <div className="bg-card rounded-lg border border-border p-8 text-center">
                   <BookMarked className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
                   <p className="text-muted-foreground">
                     {searchTerm || selectedBranch || selectedYear 
@@ -439,76 +490,155 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
                   )}
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50 hover:bg-muted/50">
-                      <TableHead className="font-semibold">Code</TableHead>
-                      <TableHead className="font-semibold">Course Name</TableHead>
-                      <TableHead className="font-semibold">Branch</TableHead>
-                      <TableHead className="font-semibold">Sem</TableHead>
-                      <TableHead className="font-semibold">Type</TableHead>
-                      <TableHead className="font-semibold text-center">Credits</TableHead>
-                      <TableHead className="font-semibold text-center">Status</TableHead>
-                      <TableHead className="font-semibold text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredCourses.map((course) => (
-                      <TableRow key={course.id} className="hover:bg-muted/30 transition-colors">
-                        <TableCell className="font-mono font-semibold text-primary">{course.course_code}</TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{course.course_name}</p>
-                            {course.description && (
-                              <p className="text-xs text-muted-foreground line-clamp-1">{course.description}</p>
+                programs
+                  .filter(program => 
+                    filteredCourses.some(course => course.program_id === program.id)
+                  )
+                  .map((program) => {
+                    const programCourses = filteredCourses.filter(c => c.program_id === program.id);
+                    const programBranches = Array.from(new Set(programCourses.map(c => c.branch_id)));
+                    const isExpanded = expandedPrograms.has(program.id);
+
+                    return (
+                      <div key={program.id} className="bg-card rounded-lg border border-border overflow-hidden">
+                        {/* Program Header */}
+                        <button
+                          onClick={() => toggleProgram(program.id)}
+                          className="w-full px-6 py-4 hover:bg-muted/50 transition-colors flex items-center justify-between bg-muted/30 border-b border-border/50"
+                        >
+                          <div className="flex items-center gap-3 flex-1 text-left">
+                            {isExpanded ? (
+                              <ChevronDown className="h-5 w-5 text-primary flex-shrink-0" />
+                            ) : (
+                              <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                             )}
+                            <div>
+                              <h3 className="text-lg font-semibold text-foreground">
+                                {program.code} - {program.name}
+                              </h3>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {programCourses.length} course{programCourses.length !== 1 ? 's' : ''}
+                              </p>
+                            </div>
                           </div>
-                        </TableCell>
-                        <TableCell className="text-sm">{getBranchDisplay(course.branch_id)}</TableCell>
-                        <TableCell className="text-center font-medium">{course.semester}</TableCell>
-                        <TableCell>
-                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-md bg-blue-100/20 text-blue-300 capitalize">
-                            {course.course_type}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-muted text-xs font-semibold">
-                            {course.credits}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            course.is_active 
-                              ? 'bg-green-100/20 text-green-300' 
-                              : 'bg-red-100/20 text-red-300'
-                          }`}>
-                            {course.is_active ? 'Active' : 'Inactive'}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleOpenDialog(course)}
-                              className="hover:bg-muted"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(course.id)}
-                              className="hover:bg-destructive/10 text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                        </button>
+
+                        {/* Program Content */}
+                        {isExpanded && (
+                          <div className="divide-y divide-border/50">
+                            {programBranches.map((branchId) => {
+                              const branch = branches.find(b => b.id === branchId);
+                              const branchCourses = programCourses.filter(c => c.branch_id === branchId);
+                              const branchKey = `${program.id}-${branchId}`;
+                              const branchExpanded = expandedBranches.has(branchKey);
+
+                              return (
+                                <div key={branchId}>
+                                  {/* Branch Header */}
+                                  <button
+                                    onClick={() => toggleBranch(branchKey)}
+                                    className="w-full px-6 py-3 hover:bg-muted/30 transition-colors flex items-center justify-between bg-background"
+                                  >
+                                    <div className="flex items-center gap-3 flex-1 text-left">
+                                      {branchExpanded ? (
+                                        <ChevronDown className="h-4 w-4 text-primary/70 flex-shrink-0" />
+                                      ) : (
+                                        <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                      )}
+                                      <div>
+                                        <h4 className="font-medium text-foreground">
+                                          {branch?.code} - {branch?.name}
+                                        </h4>
+                                        <p className="text-xs text-muted-foreground mt-0.5">
+                                          {branchCourses.length} course{branchCourses.length !== 1 ? 's' : ''}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </button>
+
+                                  {/* Branch Courses Grid */}
+                                  {branchExpanded && (
+                                    <div className="p-6 bg-muted/5">
+                                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                        {branchCourses.map((course) => (
+                                          <div
+                                            key={course.id}
+                                            className="bg-card border border-border rounded-lg p-4 hover:border-primary/50 hover:shadow-md transition-all group"
+                                          >
+                                            {/* Course Header */}
+                                            <div className="space-y-2 mb-3 pb-3 border-b border-border/50">
+                                              <div className="flex items-start justify-between gap-2">
+                                                <div className="flex-1">
+                                                  <p className="text-xs font-mono text-primary font-semibold">{course.code}</p>
+                                                  <h5 className="font-semibold text-foreground line-clamp-2 text-sm">
+                                                    {course.name}
+                                                  </h5>
+                                                </div>
+                                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-md flex-shrink-0 ${
+                                                  course.is_active 
+                                                    ? 'bg-green-100/20 text-green-300' 
+                                                    : 'bg-red-100/20 text-red-300'
+                                                }`}>
+                                                  {course.is_active ? 'Active' : 'Inactive'}
+                                                </span>
+                                              </div>
+                                              {course.description && (
+                                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                                  {course.description}
+                                                </p>
+                                              )}
+                                            </div>
+
+                                            {/* Course Details */}
+                                            <div className="grid grid-cols-2 gap-3 mb-4">
+                                              <div className="space-y-1">
+                                                <p className="text-xs text-muted-foreground font-medium">Credits</p>
+                                                <p className="text-sm font-semibold text-foreground">
+                                                  {course.credit_hours}
+                                                </p>
+                                              </div>
+                                              <div className="space-y-1">
+                                                <p className="text-xs text-muted-foreground font-medium">Type</p>
+                                                <p className="text-xs font-semibold capitalize bg-blue-100/20 text-blue-300 px-2 py-1 rounded-md w-fit">
+                                                  {course.course_type}
+                                                </p>
+                                              </div>
+                                            </div>
+
+                                            {/* Actions */}
+                                            <div className="flex gap-2 pt-3 border-t border-border/50">
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleOpenDialog(course)}
+                                                className="flex-1 h-8"
+                                              >
+                                                <Pencil className="h-3 w-3 mr-1" />
+                                                Edit
+                                              </Button>
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleDelete(course.id)}
+                                                className="flex-1 h-8 hover:bg-destructive/10 hover:text-destructive text-destructive"
+                                              >
+                                                <Trash2 className="h-3 w-3 mr-1" />
+                                                Delete
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                        )}
+                      </div>
+                    );
+                  })
               )}
             </div>
           </div>
@@ -527,21 +657,42 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
           
           <form onSubmit={handleSubmit}>
             <div className="space-y-5 py-4 px-1 max-h-[60vh] overflow-y-auto scrollbar-invisible-dark">
+              {/* Program Selection (Required) */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">
+                  Program <span className="text-red-500">*</span>
+                </label>
+                <Select value={formData.program_id} onValueChange={(value) => setFormData({ ...formData, program_id: value, branch_id: '' })}>
+                  <SelectTrigger className="border-border/50">
+                    <SelectValue placeholder="Select a program" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {programs.map((program) => (
+                      <SelectItem key={program.id} value={program.id}>
+                        {program.code} - {program.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Branch Selection (Required) */}
               <div className="space-y-2">
                 <label className="text-sm font-semibold">
                   Branch <span className="text-red-500">*</span>
                 </label>
-                <Select value={formData.branch_id} onValueChange={(value) => setFormData({ ...formData, branch_id: value })}>
+                <Select value={formData.branch_id} onValueChange={(value) => setFormData({ ...formData, branch_id: value })} disabled={!formData.program_id}>
                   <SelectTrigger className="border-border/50">
-                    <SelectValue placeholder="Select a branch" />
+                    <SelectValue placeholder={formData.program_id ? "Select a branch" : "Select a program first"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {branches.map((branch) => (
-                      <SelectItem key={branch.id} value={branch.id}>
-                        {branch.code} - {branch.name}
-                      </SelectItem>
-                    ))}
+                    {branches
+                      .filter(b => b.program_id === formData.program_id)
+                      .map((branch) => (
+                        <SelectItem key={branch.id} value={branch.id}>
+                          {branch.code} - {branch.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -575,39 +726,21 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
                 />
               </div>
 
-              {/* Credits and Semester */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold">
-                    Credits <span className="text-red-500">*</span>
-                  </label>
-                  <Input
-                    required
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={formData.credits}
-                    onChange={(e) => setFormData({ ...formData, credits: parseInt(e.target.value) })}
-                    placeholder="3"
-                    className="border-border/50"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold">
-                    Semester <span className="text-red-500">*</span>
-                  </label>
-                  <Input
-                    required
-                    type="number"
-                    min="1"
-                    max="8"
-                    value={formData.semester}
-                    onChange={(e) => setFormData({ ...formData, semester: parseInt(e.target.value) })}
-                    placeholder="1"
-                    className="border-border/50"
-                  />
-                </div>
+              {/* Credits */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">
+                  Credits <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  required
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={formData.credits}
+                  onChange={(e) => setFormData({ ...formData, credits: parseInt(e.target.value) })}
+                  placeholder="3"
+                  className="border-border/50"
+                />
               </div>
 
               {/* Course Type */}

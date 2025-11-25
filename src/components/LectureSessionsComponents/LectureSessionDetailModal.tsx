@@ -4,6 +4,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,7 @@ interface LectureSessionDetailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onEdit?: () => void;
+  onDelete?: () => void;
   onCancel?: () => void;
 }
 
@@ -43,6 +45,7 @@ export const LectureSessionDetailModal: React.FC<LectureSessionDetailModalProps>
   open,
   onOpenChange,
   onEdit,
+  onDelete,
   onCancel,
 }) => {
   const { totp, loading: totpLoading, generateTOTP, toggleOTPMode } = useTOTP(
@@ -96,7 +99,7 @@ export const LectureSessionDetailModal: React.FC<LectureSessionDetailModalProps>
         if (courseError) {
           console.error('❌ Course fetch error:', courseError);
         } else {
-          console.log('✅ Course loaded:', course?.course_name);
+          console.log('✅ Course loaded:', course?.name);
           courseDetail = course;
         }
       } else {
@@ -130,7 +133,7 @@ export const LectureSessionDetailModal: React.FC<LectureSessionDetailModalProps>
         // Fetch from instructors table (not users table)
         const { data: instructors, error: instructorError } = await supabase
           .from('instructors')
-          .select('id, instructor_code, full_name, email, phone, department, qualifications')
+          .select('id, code, name, email, phone, department, bio')
           .in('id', timetable.instructor_ids);
         
         if (instructorError) {
@@ -146,7 +149,7 @@ export const LectureSessionDetailModal: React.FC<LectureSessionDetailModalProps>
             console.warn('   2. Instructor IDs do not exist in instructors table');
           }
           instructors?.forEach((inst, idx) => {
-            console.log(`   [${idx}] ${inst.full_name} (${(inst as any).instructor_code}) - ${inst.email}`);
+            console.log(`   [${idx}] ${inst.name} (${(inst as any).code}) - ${inst.email}`);
           });
           instructorDetails = instructors;
         }
@@ -227,26 +230,31 @@ export const LectureSessionDetailModal: React.FC<LectureSessionDetailModalProps>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl bg-gradient-to-br from-slate-850 to-slate-900 border-slate-700 max-h-[90vh] overflow-y-auto">
         <DialogHeader className="bg-gradient-to-r from-slate-800 to-slate-850 -mx-6 -mt-6 px-6 py-4 border-b border-slate-700 rounded-t-lg">
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-3 flex-1 min-w-0">
-              <div className={`p-2.5 rounded-lg flex-shrink-0 ${
-                session.session_status === 'active' 
-                  ? 'bg-emerald-900/40 text-emerald-400' 
-                  : 'bg-blue-900/40 text-blue-400'
-              }`}>
-                <BookOpen className="w-5 h-5" />
+          <DialogTitle>
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                <div className={`p-2.5 rounded-lg flex-shrink-0 ${
+                  !session.is_cancelled
+                    ? 'bg-emerald-900/40 text-emerald-400' 
+                    : 'bg-red-900/40 text-red-400'
+                }`}>
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-slate-100 text-xl font-semibold">
+                    {loadingCourseData ? 'Loading...' : (course?.name || 'Session Details')}
+                  </h2>
+                  <p className="text-sm text-slate-400 mt-1">{course?.code || 'Loading course info...'}</p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <DialogTitle className="text-slate-100 text-xl">
-                  {loadingCourseData ? 'Loading...' : (course?.course_name || 'Session Details')}
-                </DialogTitle>
-                <p className="text-sm text-slate-400 mt-1">{course?.course_code || 'Loading course info...'}</p>
-              </div>
+              <Badge className={`text-xs whitespace-nowrap flex-shrink-0 ${getStatusColor(!session.is_cancelled)}`}>
+                {session.is_cancelled ? 'Cancelled' : session.is_special_class ? 'Special Class' : 'Active'}
+              </Badge>
             </div>
-            <Badge className={`text-xs whitespace-nowrap flex-shrink-0 ${getStatusColor(session.session_status)}`}>
-              {session.session_status.charAt(0).toUpperCase() + session.session_status.slice(1)}
-            </Badge>
-          </div>
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Lecture session details including timing, location, instructors, and TOTP information
+          </DialogDescription>
         </DialogHeader>
         <Tabs defaultValue="details" className="w-full">
           <TabsList className="grid w-full grid-cols-3 bg-slate-800 border-slate-700">
@@ -296,7 +304,7 @@ export const LectureSessionDetailModal: React.FC<LectureSessionDetailModalProps>
                         <div>
                           <p className="text-xs text-slate-500">Scheduled Date</p>
                           <p className="text-slate-100 font-semibold">
-                            {format(new Date(session.scheduled_date), 'PPP')}
+                            {format(new Date(session.session_date), 'PPP')}
                           </p>
                         </div>
                         <div>
@@ -354,10 +362,10 @@ export const LectureSessionDetailModal: React.FC<LectureSessionDetailModalProps>
                           {instructor.map((inst: any, idx: number) => (
                             <div key={inst.id || idx} className="pb-4">
                               {/* Instructor Code Badge */}
-                              {(inst as any).instructor_code && (
+                              {(inst as any).code && (
                                 <div className="flex items-center gap-2 mb-2">
                                   <Badge variant="outline" className="bg-emerald-900/50 border-emerald-700 text-emerald-200 text-xs font-mono">
-                                    {(inst as any).instructor_code}
+                                    {(inst as any).code}
                                   </Badge>
                                 </div>
                               )}
@@ -402,7 +410,7 @@ export const LectureSessionDetailModal: React.FC<LectureSessionDetailModalProps>
                         </div>
                         <div>
                           <p className="text-xs text-slate-500">Credits</p>
-                          <p className="text-slate-100 font-semibold">{course?.credits || 'N/A'}</p>
+                          <p className="text-slate-100 font-semibold">{course?.credit_hours || 'N/A'}</p>
                         </div>
                       </div>
                     </CardContent>
@@ -576,23 +584,23 @@ export const LectureSessionDetailModal: React.FC<LectureSessionDetailModalProps>
                 <CardContent className="space-y-3">
                   <div className="flex items-center justify-between p-3 bg-slate-900 rounded">
                     <div className="flex items-center gap-2">
-                      {session.attendance_open ? (
+                      {!session.is_cancelled ? (
                         <CheckCircle className="w-5 h-5 text-green-400" />
                       ) : (
                         <AlertCircle className="w-5 h-5 text-slate-600" />
                       )}
-                      <span className="text-slate-300">Attendance Status</span>
+                      <span className="text-slate-300">Session Status</span>
                     </div>
                     <Badge
-                      className={session.attendance_open ? 'bg-green-900 text-green-200' : 'bg-slate-700'}
+                      className={!session.is_cancelled ? 'bg-green-900 text-green-200' : 'bg-red-700'}
                     >
-                      {session.attendance_open ? 'OPEN' : 'CLOSED'}
+                      {session.is_cancelled ? 'CANCELLED' : 'ACTIVE'}
                     </Badge>
                   </div>
 
-                  {session.attendance_close_time && (
-                    <div className="p-3 bg-slate-900 rounded text-sm">
-                      <p className="text-slate-400">Close Time</p>
+                  {session.is_special_class && (
+                    <div className="p-3 bg-blue-900/30 rounded text-sm border border-blue-700">
+                      <p className="text-blue-300">This is a special/makeup class</p>
                       <p className="text-slate-100 font-semibold">
                         {format(new Date(session.attendance_close_time), 'HH:mm:ss')}
                       </p>
@@ -610,12 +618,28 @@ export const LectureSessionDetailModal: React.FC<LectureSessionDetailModalProps>
         </Tabs>
 
         <DialogFooter className="space-x-2">
-          {onEdit && (
-            <Button onClick={onEdit} className="bg-blue-600 hover:bg-blue-700">
-              Edit Session
-            </Button>
+          {/* Edit and Delete buttons - only for special classes */}
+          {session?.is_special_class && (
+            <>
+              {onEdit && (
+                <Button 
+                  onClick={onEdit} 
+                  className="bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500 text-cyan-300 hover:text-cyan-200"
+                >
+                  Edit Session
+                </Button>
+              )}
+              {onDelete && (
+                <Button 
+                  onClick={onDelete}
+                  className="bg-red-600/20 hover:bg-red-600/30 border border-red-500 text-red-300 hover:text-red-200"
+                >
+                  Delete Session
+                </Button>
+              )}
+            </>
           )}
-          {onCancel && (
+          {onCancel && !session?.is_special_class && (
             <Button onClick={onCancel} variant="destructive">
               Cancel Session
             </Button>

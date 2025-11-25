@@ -192,6 +192,16 @@ export default function Login() {
                 Sign up here
               </Link>
             </div>
+
+            <div className="text-center text-sm text-muted-foreground">
+              Forgot your password?{" "}
+              <Link 
+                to="/auth/forgot-password" 
+                className="text-primary hover:text-accent font-medium"
+              >
+                Reset it here
+              </Link>
+            </div>
           </CardContent>
         </Card>
 

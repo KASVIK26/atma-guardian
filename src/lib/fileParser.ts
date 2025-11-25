@@ -18,13 +18,11 @@ export interface TimetableEntry {
 }
 
 export interface StudentEnrollment {
-  studentId: string;
-  rollNumber: string;
-  name: string;
-  email?: string;
-  regMailId?: string; // Registration/Gmail ID
-  phone?: string;
-  year?: number;
+  firstName: string;
+  lastName: string;
+  enrollmentNo: string;
+  email: string;
+  batch?: string;
 }
 
 export interface ParseResult<T> {
@@ -408,78 +406,61 @@ function parseEnrollmentText(text: string): ParseResult<StudentEnrollment> {
 
   console.log('=== ENROLLMENT PARSING START ===');
   console.log('Text length:', text.length);
-  console.log('First 500 chars:', text.substring(0, 500));
 
-  // Common patterns for student data
-  const rollPattern = /(\d{8,12})/g;
+  // Pattern for enrollment number (alphanumeric, usually starts with ENR or similar)
+  const enrollmentPattern = /[A-Z]{2,}[\d]{6,10}/gi;
   const emailPattern = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
-  const phonePattern = /(\+?\d{10,15})/g;
-  const gmailPattern = /([a-zA-Z0-9._%+-]+@gmail\.com)/gi; // Specifically Gmail addresses
 
   const lines = text.split('\n').filter(line => line.trim().length > 0);
   console.log('Total lines:', lines.length);
-  console.log('Sample lines:', lines.slice(0, 5));
   
   let skippedLines = 0;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     
     // Skip header lines
-    if (line.toLowerCase().includes('student') && line.toLowerCase().includes('list') ||
-        line.toLowerCase().includes('roll') && line.toLowerCase().includes('name') ||
+    if (line.toLowerCase().includes('first name') || 
         line.toLowerCase().includes('enrollment') ||
-        line.toLowerCase().includes('s.no')) {
+        line.toLowerCase().includes('batch')) {
       skippedLines++;
       continue;
     }
 
-    const rollMatch = line.match(rollPattern);
+    const enrollmentMatches = line.match(enrollmentPattern);
     const emailMatches = line.match(emailPattern);
-    const gmailMatches = line.match(gmailPattern);
-    const phoneMatch = line.match(phonePattern);
 
-    if (i < 20) {
-      console.log(`Line ${i}:`, line.substring(0, 80));
-      console.log(`  - Roll:`, rollMatch ? rollMatch[0] : 'NO');
-      console.log(`  - Email:`, emailMatches ? emailMatches[0] : 'NO');
-      console.log(`  - Gmail:`, gmailMatches ? gmailMatches[0] : 'NO');
-    }
+    if (enrollmentMatches && emailMatches) {
+      // Extract first and last name by removing enrollment number and email
+      let name = line
+        .replace(enrollmentMatches[0], '')
+        .replace(emailMatches[0], '')
+        .trim();
+      
+      // Split into first and last name
+      const nameParts = name.split(/\s+/);
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
 
-    if (rollMatch) {
-      // Get first email as primary, Gmail as registration email
-      let email = emailMatches ? emailMatches[0] : undefined;
-      let regMailId = gmailMatches ? gmailMatches[0] : emailMatches ? emailMatches[emailMatches.length - 1] : undefined;
-
-      // If we only have one email and it's not Gmail, use it as email
-      if (emailMatches && emailMatches.length === 1 && !emailMatches[0].includes('gmail')) {
-        email = emailMatches[0];
-        regMailId = undefined;
+      if (firstName && lastName && enrollmentMatches[0] && emailMatches[0]) {
+        students.push({
+          firstName,
+          lastName,
+          enrollmentNo: enrollmentMatches[0],
+          email: emailMatches[0],
+          batch: undefined
+        });
       }
-
-      const student: StudentEnrollment = {
-        studentId: rollMatch[0],
-        rollNumber: rollMatch[0],
-        name: extractStudentName(line, rollMatch[0]),
-        email: email,
-        regMailId: regMailId,
-        phone: phoneMatch ? phoneMatch[0] : undefined
-      };
-
-      console.log('✓ Created student entry:', student);
-      students.push(student);
     }
   }
 
   console.log('=== ENROLLMENT PARSING COMPLETE ===');
   console.log('Total students found:', students.length);
-  console.log('Lines skipped:', skippedLines);
-  console.log('Students:', students);
 
   return {
     success: students.length > 0,
     data: students,
     errors,
-    warnings: students.length === 0 ? ['No student enrollments found. Please check file format. See console for debugging details.'] : warnings,
+    warnings: students.length === 0 ? ['No student enrollments found. Please check file format.'] : warnings,
     totalRecords: students.length
   };
 }
@@ -591,13 +572,24 @@ function parseEnrollmentFromRows(rows: string[][]): ParseResult<StudentEnrollmen
     };
   }
 
-  // Try to find header row and column indices
+  // Try to find header row and column indices for new schema
   const headerRow = rows[0];
-  const rollCol = findColumnIndex(headerRow, ['roll', 'roll number', 'student id', 'id', 'enrollment no']);
-  const nameCol = findColumnIndex(headerRow, ['name', 'student name', 'full name']);
-  const emailCol = findColumnIndex(headerRow, ['email', 'email id', 'mail', 'institutional email']);
-  const regMailCol = findColumnIndex(headerRow, ['reg mail', 'reg_mail', 'reg mail id', 'gmail', 'personal email', 'gmail id']);
-  const phoneCol = findColumnIndex(headerRow, ['phone', 'mobile', 'contact', 'phone number']);
+  const firstNameCol = findColumnIndex(headerRow, ['first name', 'firstname', 'first_name']);
+  const lastNameCol = findColumnIndex(headerRow, ['last name', 'lastname', 'last_name']);
+  const enrollmentNoCol = findColumnIndex(headerRow, ['enrollment no', 'enrollment number', 'enrollment_no', 'enrollment_number', 'enrollment no.']);
+  const emailCol = findColumnIndex(headerRow, ['email', 'email id', 'mail', 'email address']);
+  const batchCol = findColumnIndex(headerRow, ['batch', 'section batch', 'batch name']);
+
+  if (firstNameCol < 0 || lastNameCol < 0 || enrollmentNoCol < 0 || emailCol < 0) {
+    errors.push('Required columns not found. Expected: First Name, Last Name, Enrollment No, Email, Batch (optional)');
+    return {
+      success: false,
+      data: [],
+      errors,
+      warnings,
+      totalRecords: 0
+    };
+  }
 
   // Process data rows
   for (let i = 1; i < rows.length; i++) {
@@ -605,21 +597,25 @@ function parseEnrollmentFromRows(rows: string[][]): ParseResult<StudentEnrollmen
     if (row.length === 0 || !row.some(cell => cell && cell.toString().trim())) continue;
 
     try {
-      const rollNumber = rollCol >= 0 ? row[rollCol]?.toString().trim() : '';
-      const name = nameCol >= 0 ? row[nameCol]?.toString().trim() : '';
+      const firstName = firstNameCol >= 0 ? row[firstNameCol]?.toString().trim() : '';
+      const lastName = lastNameCol >= 0 ? row[lastNameCol]?.toString().trim() : '';
+      const enrollmentNo = enrollmentNoCol >= 0 ? row[enrollmentNoCol]?.toString().trim() : '';
+      const email = emailCol >= 0 ? row[emailCol]?.toString().trim() : '';
+      const batch = batchCol >= 0 ? row[batchCol]?.toString().trim() : undefined;
 
-      if (rollNumber && name) {
+      if (firstName && lastName && enrollmentNo && email) {
         students.push({
-          studentId: rollNumber,
-          rollNumber: rollNumber,
-          name: name,
-          email: emailCol >= 0 ? row[emailCol]?.toString().trim() : undefined,
-          regMailId: regMailCol >= 0 ? row[regMailCol]?.toString().trim() : undefined,
-          phone: phoneCol >= 0 ? row[phoneCol]?.toString().trim() : undefined
+          firstName,
+          lastName,
+          enrollmentNo,
+          email,
+          batch: batch && batch.length > 0 ? batch : undefined
         });
+      } else {
+        warnings.push(`Row ${i + 1}: Skipped - missing required fields (first name, last name, enrollment no, or email)`);
       }
     } catch (error) {
-      errors.push(`Error processing row ${i + 1}: ${error.message}`);
+      errors.push(`Error processing row ${i + 1}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

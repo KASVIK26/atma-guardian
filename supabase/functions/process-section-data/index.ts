@@ -173,8 +173,8 @@ serve(async (req) => {
                 .from('instructors')
                 .insert({
                   university_id: universityId,
-                  instructor_code: instructorCode,
-                  full_name: entry.instructor || `Instructor ${instructorCode}`,
+                  code: instructorCode,
+                  name: entry.instructor || `Instructor ${instructorCode}`,
                   is_active: true
                 })
                 .select('id')

@@ -414,7 +414,7 @@ function BuildingManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurre
 
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">
-                    Altitude / Floor Height (meters)
+                    Floor Height (meters)
                   </label>
                   <Input
                     type="number"
@@ -422,7 +422,7 @@ function BuildingManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurre
                     step="0.1"
                     value={formData.altitude_meters}
                     onChange={(e) => setFormData({ ...formData, altitude_meters: parseFloat(e.target.value) })}
-                    placeholder="e.g., 500"
+                    placeholder="e.g., 4.5"
                     className="border-border/50"
                   />
                 </div>

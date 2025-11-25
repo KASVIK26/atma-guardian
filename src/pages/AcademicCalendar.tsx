@@ -31,7 +31,7 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
   const [semesterStart, setSemesterStart] = useState('');
   const [semesterEnd, setSemesterEnd] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
-  const [selectedSemester, setSelectedSemester] = useState('1');
+  const [selectedSemester, setSelectedSemester] = useState(''); // Now stores semester ID, not number
   const [years, setYears] = useState<any[]>([]);
   const [universityId, setUniversityId] = useState<string>('');
   const [semesters, setSemesters] = useState<any[]>([]);
@@ -42,7 +42,17 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
   const [isAddingHoliday, setIsAddingHoliday] = useState(false);
   const [newHolidayDate, setNewHolidayDate] = useState('');
   const [newHolidayName, setNewHolidayName] = useState('');
+  const [newHolidayEventType, setNewHolidayEventType] = useState('holiday');
+  const [newHolidayDescription, setNewHolidayDescription] = useState('');
+  const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // Force refresh trigger
+  const [selectedDateStart, setSelectedDateStart] = useState<string | null>(null); // For date range selection
+  const [selectedDateEnd, setSelectedDateEnd] = useState<string | null>(null); // For date range selection
+
+  // Helper function to get semester label (Sem A for odd, Sem B for even)
+  const getSemesterLabel = (semesterNumber: number): string => {
+    return semesterNumber % 2 === 1 ? 'Sem A' : 'Sem B';
+  };
 
   useEffect(() => {
     if (currentPage !== 'calendar') {
@@ -70,17 +80,29 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
         setSelectedYear(years[0]?.academic_year || '');
       }
       
-      setSelectedSemester('1');
       console.log('📅 Default values set');
     }
   }, [years, selectedYear]);
 
   useEffect(() => {
+    // Auto-select first semester of selected year if year changes
+    if (selectedYear && semesters.length > 0 && !selectedSemester) {
+      const semestersForYear = semesters.filter(s => s.academic_year === selectedYear);
+      if (semestersForYear.length > 0) {
+        // Sort by number to get first semester
+        semestersForYear.sort((a, b) => a.number - b.number);
+        console.log('📅 Auto-selecting first semester:', semestersForYear[0].id);
+        setSelectedSemester(semestersForYear[0].id);
+      }
+    }
+  }, [selectedYear, semesters, selectedSemester]);
+
+  useEffect(() => {
     console.log('📅 Semester/Year changed:', { selectedYear, selectedSemester, universityId, semestersCount: semesters.length });
     
     if (selectedYear && selectedSemester && universityId && semesters.length > 0) {
-      const num = parseInt(selectedSemester);
-      const sem = semesters.find(s => s.academic_year === selectedYear && s.semester_number === num);
+      // selectedSemester now contains the semester ID directly
+      const sem = semesters.find(s => s.id === selectedSemester);
       
       if (sem) {
         console.log('📅 Found semester:', { id: sem.id, start: sem.start_date, end: sem.end_date });
@@ -91,7 +113,7 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
         // Immediately fetch events with the semester ID
         fetchEventsForSemester(sem.id);
       } else {
-        console.log('❌ Semester not found for:', { year: selectedYear, semester: num });
+        console.log('❌ Semester not found for ID:', selectedSemester);
       }
     } else {
       console.log('⏳ Waiting for required data...');
@@ -109,14 +131,7 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
       if (userData) {
         setUniversityId(userData.university_id);
 
-        const { data: yearsData } = await supabase
-          .from('years')
-          .select('id, academic_year, year_number')
-          .eq('university_id', userData.university_id)
-          .order('academic_year', { ascending: false });
-
-        setYears(yearsData || []);
-
+        // Fetch semesters to get unique academic_year values
         const { data: semestersData } = await supabase
           .from('semesters')
           .select('*')
@@ -124,6 +139,26 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
           .order('academic_year', { ascending: false });
 
         setSemesters(semestersData || []);
+
+        // Extract unique academic_year values and format them for the years dropdown
+        if (semestersData && semestersData.length > 0) {
+          const uniqueYears = Array.from(
+            new Map(
+              semestersData.map(sem => [
+                sem.academic_year,
+                {
+                  id: `year_${sem.academic_year}`,
+                  academic_year: sem.academic_year,
+                  year_number: 1
+                }
+              ])
+            ).values()
+          ).sort((a, b) => b.academic_year.localeCompare(a.academic_year));
+
+          setYears(uniqueYears);
+        } else {
+          setYears([]);
+        }
       }
     } catch (error) {
       console.error('Error fetching university data:', error);
@@ -148,7 +183,7 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
 
       const { data: eventsData, error } = await supabase
         .from('academic_calendar')
-        .select('id, event_date, event_type, event_name, description')
+        .select()
         .eq('semester_id', semesterId)
         .order('event_date', { ascending: true });
 
@@ -186,7 +221,7 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
 
       const { data: eventsData, error } = await supabase
         .from('academic_calendar')
-        .select('id, event_date, event_type, event_name, description')
+        .select()
         .eq('semester_id', currentSemesterId)
         .order('event_date', { ascending: true });
 
@@ -279,7 +314,7 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
           
           return {
             university_id: universityId,
-            academic_year: selectedYear,
+            semester_id: currentSemesterId,
             event_date: dateStr,
             event_type: 'holiday',
             event_name: item.event.event_name,
@@ -331,21 +366,55 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
       
       const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek];
 
-      console.log('Checking for existing event:', { dateStr, events: events.map(e => e.event_date) });
+      console.log('Date selection:', { dateStr, selectedDateStart, selectedDateEnd });
 
       // Check if already marked
       const existingEvent = events.find(e => e.event_date === dateStr);
       if (existingEvent) {
-        // Already exists - don't auto-insert, let user edit via table
         toast.info(`Holiday already marked for ${dateStr}`);
         return;
       }
 
-      console.log('Setting new holiday form:', { dateStr, dayName });
-      // Show form to add new holiday
-      setNewHolidayDate(dateStr);
-      setNewHolidayName(`Holiday - ${dayName}`);
-      setIsAddingHoliday(true);
+      // Smart date range selection logic
+      if (!selectedDateStart) {
+        // First tap - select start date (yellow)
+        setSelectedDateStart(dateStr);
+        console.log('First tap - date selected (yellow):', dateStr);
+      } else if (dateStr === selectedDateStart && !selectedDateEnd) {
+        // Second tap on same date - open modal with same date as start and end (green -> modal)
+        console.log('Second tap on same date - opening modal:', dateStr);
+        setSelectedDateEnd(dateStr); // Set end = start for single date
+        setNewHolidayDate(dateStr);
+        setNewHolidayName('');
+        setNewHolidayEventType('holiday');
+        setNewHolidayDescription('');
+        setIsHolidayModalOpen(true);
+      } else if (!selectedDateEnd) {
+        // Tap on different date - select range end
+        const startDate = new Date(selectedDateStart);
+        const endDate = new Date(dateStr);
+        
+        if (endDate < startDate) {
+          // If end is before start, swap them
+          setSelectedDateEnd(selectedDateStart);
+          setSelectedDateStart(dateStr);
+          console.log('Range selected (reversed):', dateStr, '-', selectedDateStart);
+        } else {
+          setSelectedDateEnd(dateStr);
+          console.log('Range selected:', selectedDateStart, '-', dateStr);
+          // Open modal to confirm range
+          setNewHolidayDate(selectedDateStart);
+          setNewHolidayName('');
+          setNewHolidayEventType('holiday');
+          setNewHolidayDescription('');
+          setIsHolidayModalOpen(true);
+        }
+      } else {
+        // Range already selected - reset and start new selection
+        setSelectedDateStart(dateStr);
+        setSelectedDateEnd(null);
+        console.log('Reset selection, new start date:', dateStr);
+      }
     } catch (error: any) {
       console.error('Error marking holiday:', error?.message || error);
       toast.error(error?.message || 'Failed to mark holiday');
@@ -364,26 +433,58 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
         return;
       }
 
-      if (!selectedYear) {
-        toast.error('Academic year not selected');
+      if (!currentSemesterId) {
+        toast.error('Semester not selected');
         return;
       }
 
-      const insertPayload = {
+      // If date range is selected, add holiday for each date in range
+      let datesToAdd: string[] = [];
+      
+      if (selectedDateStart && selectedDateEnd) {
+        // Add for each date in range
+        const startDate = new Date(selectedDateStart);
+        const endDate = new Date(selectedDateEnd);
+        const currentDate = new Date(startDate);
+        
+        while (currentDate <= endDate) {
+          const year = currentDate.getFullYear();
+          const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+          const day = String(currentDate.getDate()).padStart(2, '0');
+          const dateStr = `${year}-${month}-${day}`;
+          
+          // Check if it's not a weekend
+          const dayOfWeek = currentDate.getDay();
+          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+          
+          if (!isWeekend) {
+            datesToAdd.push(dateStr);
+          }
+          
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+      } else {
+        datesToAdd = [newHolidayDate];
+      }
+
+      // Create insert payloads for all dates
+      // For both single and range, insert individual rows with event_date only
+      const insertPayloads = datesToAdd.map(dateStr => ({
         university_id: universityId,
         semester_id: currentSemesterId,
-        event_date: newHolidayDate,
-        event_type: 'holiday',
+        event_date: dateStr,
+        event_type: newHolidayEventType,
         event_name: newHolidayName.trim(),
-        description: `Holiday - ${newHolidayName.trim()}`
-      };
+        description: newHolidayDescription.trim() || newHolidayName.trim()
+      }));
 
-      console.log('📝 Adding holiday with payload:', insertPayload);
+      console.log('📝 Adding holidays with payload:', insertPayloads);
 
-      // Insert the new holiday
-      const { data, error } = await supabase
+      // Insert the holidays
+      const { error, data } = await supabase
         .from('academic_calendar')
-        .insert([insertPayload], { count: 'exact' });
+        .insert(insertPayloads)
+        .select();
 
       if (error) {
         console.error('❌ Insert failed:', error);
@@ -391,15 +492,20 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
         return;
       }
 
-      console.log('✅ Holiday added successfully:', data);
+      console.log('✅ Holidays added successfully:', data);
       
       // Clear form immediately
       setNewHolidayDate('');
       setNewHolidayName('');
+      setNewHolidayEventType('holiday');
+      setNewHolidayDescription('');
       setIsAddingHoliday(false);
+      setIsHolidayModalOpen(false);
+      setSelectedDateStart(null);
+      setSelectedDateEnd(null);
       
       // Show success toast
-      toast.success('Holiday added successfully!');
+      toast.success(`${datesToAdd.length} holiday(s) added successfully!`);
       
       // Force refresh with small delay to ensure DB has committed
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -416,8 +522,13 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
 
   const handleCancelAdd = () => {
     setIsAddingHoliday(false);
+    setIsHolidayModalOpen(false);
     setNewHolidayDate('');
     setNewHolidayName('');
+    setNewHolidayEventType('holiday');
+    setNewHolidayDescription('');
+    setSelectedDateStart(null);
+    setSelectedDateEnd(null);
   };
 
   const handleDeleteEvent = async (eventId: string) => {
@@ -548,7 +659,7 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
             {/* Controls */}
             <Card>
               <CardHeader>
-                <CardTitle>Calendar Setup</CardTitle>
+                <CardTitle>Update Semester Dates</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-4 gap-4">
@@ -575,22 +686,34 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
                         <SelectValue placeholder="Select semester" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1">Sem A (1, 3, 5, 7...)</SelectItem>
-                        <SelectItem value="2">Sem B (2, 4, 6, 8...)</SelectItem>
+                        {selectedYear && semesters.length > 0 && 
+                          semesters
+                            .filter(s => s.academic_year === selectedYear)
+                            .sort((a, b) => a.number - b.number)
+                            .map((sem) => (
+                              <SelectItem key={sem.id} value={sem.id}>
+                                {getSemesterLabel(sem.number)} ({sem.number}) - {sem.name}
+                              </SelectItem>
+                            ))
+                        }
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div></div>
 
-                  <Button onClick={() => {
-                    setIsEditingDates(false);
-                    setDialogOpen(true);
-                  }} className="gap-2 h-10 mt-auto">
+                  <Button 
+                    onClick={() => {
+                      setIsEditingDates(false);
+                      setDialogOpen(true);
+                    }} 
+                    disabled={!selectedSemester}
+                    className="gap-2 h-10 mt-auto"
+                  >
                     {currentSemesterId ? (
                       <>
                         <Edit className="h-4 w-4" />
-                        Edit Dates
+                        Update Dates
                       </>
                     ) : (
                       <>
@@ -654,17 +777,30 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
                                   return <div key={`outside-${idx}`} className="aspect-square"></div>;
                                 }
 
+                                // Check if date is in selected range
+                                const isSelectedStart = entry.dateStr === selectedDateStart;
+                                const isSelectedEnd = entry.dateStr === selectedDateEnd;
+                                const isSingleDateSelected = selectedDateStart === selectedDateEnd && selectedDateStart === entry.dateStr;
+                                const isInRange = selectedDateStart && selectedDateEnd && 
+                                  new Date(entry.dateStr) >= new Date(selectedDateStart) && 
+                                  new Date(entry.dateStr) <= new Date(selectedDateEnd) &&
+                                  !entry.isWeekend;
+
                                 return (
                                   <div
                                     key={entry.dateStr}
                                     onClick={() => !entry.isWeekend && handleMarkHoliday(entry.date)}
                                     className={`
-                                      aspect-square p-2 rounded-lg border text-xs font-medium cursor-pointer
+                                      aspect-square p-2 rounded-lg border-2 text-xs font-medium cursor-pointer
                                       transition-all duration-200 flex items-center justify-center
                                       ${entry.isWeekend ? 'bg-red-500/10 border-red-500 text-muted-foreground cursor-not-allowed' : ''}
                                       ${entry.isHoliday && !entry.isWeekend ? 'bg-green-500/30 border-green-500 text-green-700 dark:text-green-300 font-bold' : ''}
                                       ${entry.isHoliday && entry.isWeekend ? 'bg-red-500/20 border-red-500' : ''}
-                                      ${entry && !entry.isHoliday && !entry.isWeekend ? 'border-muted hover:bg-muted/50' : ''}
+                                      ${isSingleDateSelected ? 'border-green-500 bg-green-500/30 border-2 shadow-md' : ''}
+                                      ${isSelectedStart && !isSingleDateSelected ? 'border-yellow-400 bg-yellow-400/20' : ''}
+                                      ${isSelectedEnd && !isSingleDateSelected ? 'border-yellow-400 bg-yellow-400/20' : ''}
+                                      ${isInRange && !isSelectedStart && !isSelectedEnd && !isSingleDateSelected ? 'border-yellow-300 bg-yellow-300/10' : ''}
+                                      ${entry && !entry.isHoliday && !entry.isWeekend && !isSelectedStart && !isSelectedEnd && !isInRange && !isSingleDateSelected ? 'border-muted hover:bg-muted/50' : ''}
                                     `}
                                     title={entry.event?.event_name || ''}
                                   >
@@ -706,55 +842,8 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {/* Add New Holiday Row */}
-                      {isAddingHoliday && (
-                        <TableRow className="bg-muted/30 hover:bg-muted/30">
-                          <TableCell>
-                            <input
-                              type="date"
-                              value={newHolidayDate}
-                              onChange={(e) => setNewHolidayDate(e.target.value)}
-                              className="px-2 py-1 border rounded text-sm bg-background w-full"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            {newHolidayDate ? new Date(newHolidayDate).toLocaleDateString('en-US', { weekday: 'long' }).split(',')[0] : '-'}
-                          </TableCell>
-                          <TableCell>
-                            <input
-                              type="text"
-                              value={newHolidayName}
-                              onChange={(e) => setNewHolidayName(e.target.value)}
-                              placeholder="Enter holiday name"
-                              className="px-2 py-1 border rounded text-sm bg-background w-full"
-                              autoFocus
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                onClick={handleAddHoliday}
-                                className="bg-green-600 hover:bg-green-700"
-                              >
-                                <Check className="h-4 w-4 mr-1" />
-                                Add
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={handleCancelAdd}
-                              >
-                                <X className="h-4 w-4 mr-1" />
-                                Cancel
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-
                       {/* Existing Holidays */}
-                      {events.length === 0 && !isAddingHoliday ? (
+                      {events.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                             No holidays marked yet. Click on a calendar date to add one.
@@ -845,20 +934,101 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
                 </div>
 
                 {/* Add Holiday Button */}
-                {!isAddingHoliday && (
-                  <Button
-                    onClick={() => setIsAddingHoliday(true)}
-                    className="mt-4 gap-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Holiday
-                  </Button>
-                )}
+                <Button
+                  onClick={() => {
+                    setNewHolidayDate('');
+                    setNewHolidayName('');
+                    setNewHolidayEventType('holiday');
+                    setNewHolidayDescription('');
+                    setIsHolidayModalOpen(true);
+                  }}
+                  className="mt-4 gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Holiday
+                </Button>
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
+
+      {/* Add Holiday Dialog */}
+      <Dialog open={isHolidayModalOpen} onOpenChange={setIsHolidayModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Holiday</DialogTitle>
+            <DialogDescription>
+              {selectedDateStart && selectedDateEnd
+                ? `Add holiday for date range: ${selectedDateStart} to ${selectedDateEnd}`
+                : selectedDateStart
+                ? `Add holiday for date: ${selectedDateStart}`
+                : 'Enter holiday details'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Date Display */}
+            {selectedDateStart && (
+              <div className="p-3 rounded-lg bg-muted/50 border">
+                <p className="text-xs font-semibold text-muted-foreground mb-1">Selected Date(s)</p>
+                <p className="text-sm font-medium">
+                  {selectedDateStart}
+                  {selectedDateEnd && selectedDateEnd !== selectedDateStart && ` to ${selectedDateEnd}`}
+                </p>
+              </div>
+            )}
+
+            {/* Holiday Name */}
+            <div>
+              <Label htmlFor="holiday-name">Holiday Name <span className="text-red-500">*</span></Label>
+              <Input
+                id="holiday-name"
+                value={newHolidayName}
+                onChange={(e) => setNewHolidayName(e.target.value)}
+                placeholder="e.g., Diwali, Christmas"
+              />
+            </div>
+
+            {/* Event Type */}
+            <div>
+              <Label htmlFor="event-type">Event Type</Label>
+              <Select value={newHolidayEventType} onValueChange={setNewHolidayEventType}>
+                <SelectTrigger id="event-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="holiday">Holiday</SelectItem>
+                  <SelectItem value="exam">Exam</SelectItem>
+                  <SelectItem value="event">Event</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Description */}
+            <div>
+              <Label htmlFor="holiday-desc">Description (Optional)</Label>
+              <Input
+                id="holiday-desc"
+                value={newHolidayDescription}
+                onChange={(e) => setNewHolidayDescription(e.target.value)}
+                placeholder="Add any additional details"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelAdd}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddHoliday} className="bg-green-600 hover:bg-green-700">
+              <Check className="h-4 w-4 mr-2" />
+              Add Holiday
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Semester Setup Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

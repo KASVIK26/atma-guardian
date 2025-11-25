@@ -55,32 +55,39 @@ export const LectureSessionCard: React.FC<LectureSessionCardProps> = ({
   const course = timetable?.courses as any;
   const room = timetable?.rooms as any;
   const instructors = Array.isArray(timetable?.users) ? timetable.users : (timetable?.users ? [timetable.users] : []);
-  const isSpecialClass = session.notes?.includes('special') || session.notes?.includes('makeup');
+  
+  // For special classes, use direct session fields
+  const isSpecialClass = session.is_special_class === true;
+  const displayStartTime = timetable?.start_time || session.start_time || '';
+  const displayEndTime = timetable?.end_time || session.end_time || '';
+  const displayCourseCode = course?.course_code || course?.code || 'N/A';
+  const displayCourseName = course?.course_name || course?.name || 'Special Class';
+  const displayRoomNumber = room?.room_number || 'TBA';
 
   // Debug logging
-  console.log('🎓 LectureSessionCard - Instructor Debug:', {
+  console.log('🎓 LectureSessionCard - Debug:', {
     session_id: session.id,
-    compact: compact,
+    is_special_class: isSpecialClass,
     has_timetable: !!timetable,
+    course_code: displayCourseCode,
+    start_time: displayStartTime,
     instructor_count: instructors.length,
-    instructors_exist: instructors.length > 0,
-    instructor_names: instructors.map((i: any) => i.full_name).join(', '),
-    instructors_data: instructors,
+    room: displayRoomNumber,
   });
 
   if (compact) {
     return (
       <div
         onClick={onClick}
-        className={`group p-3 rounded-lg cursor-pointer transition-all duration-300 border backdrop-blur-sm ${getStatusColor(session.session_status)}`}
+        className={`group p-3 rounded-lg cursor-pointer transition-all duration-300 border backdrop-blur-sm ${getStatusColor(!session.is_cancelled)}`}
       >
         <div className="space-y-2">
           {/* Header with Status Dot */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusDot(session.session_status)}`}></div>
+              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusDot(!session.is_cancelled)}`}></div>
               <div className="font-semibold text-sm truncate text-slate-100">
-                {course?.course_code}
+                {displayCourseCode}
               </div>
             </div>
             {isSpecialClass && (
@@ -90,20 +97,20 @@ export const LectureSessionCard: React.FC<LectureSessionCardProps> = ({
 
           {/* Course Name */}
           <div className="text-xs text-slate-300 truncate leading-tight">
-            {course?.course_name}
+            {displayCourseName}
           </div>
 
           {/* Time */}
           <div className="flex items-center gap-1.5 text-xs text-slate-400">
             <Clock className="w-3 h-3 text-slate-500 flex-shrink-0" />
-            <span className="truncate">{timetable?.start_time} - {timetable?.end_time}</span>
+            <span className="truncate">{displayStartTime} - {displayEndTime}</span>
           </div>
 
           {/* Room */}
-          {room && (
+          {displayRoomNumber && displayRoomNumber !== 'TBA' && (
             <div className="flex items-center gap-1.5 text-xs text-slate-400">
               <MapPin className="w-3 h-3 text-slate-500 flex-shrink-0" />
-              <span className="truncate">{room.room_number}</span>
+              <span className="truncate">{displayRoomNumber}</span>
             </div>
           )}
 
@@ -114,10 +121,10 @@ export const LectureSessionCard: React.FC<LectureSessionCardProps> = ({
                 <div key={inst.id || idx} className="flex items-center gap-1.5 text-xs">
                   <User className="w-3 h-3 text-emerald-400 flex-shrink-0" />
                   <div className="flex items-center gap-1 min-w-0">
-                    {(inst as any).instructor_code && (
-                      <span className="font-mono text-emerald-300 truncate">({(inst as any).instructor_code})</span>
+                    {(inst as any).code && (
+                      <span className="font-mono text-emerald-300 truncate">({(inst as any).code})</span>
                     )}
-                    <span className="text-slate-400 truncate">{inst.full_name}</span>
+                    <span className="text-slate-400 truncate">{inst.name || inst.full_name}</span>
                   </div>
                 </div>
               ))}
@@ -125,10 +132,10 @@ export const LectureSessionCard: React.FC<LectureSessionCardProps> = ({
           )}
 
           {/* Attendance Badge */}
-          {session.attendance_open && (
+          {!session.is_cancelled && (
             <div className="inline-block">
               <Badge className="text-xs bg-green-700 text-green-100 border-green-600">
-                Attendance Open
+                Active Session
               </Badge>
             </div>
           )}
@@ -141,16 +148,16 @@ export const LectureSessionCard: React.FC<LectureSessionCardProps> = ({
   return (
     <Card
       onClick={onClick}
-      className={`p-5 rounded-lg cursor-pointer transition-all duration-300 border backdrop-blur-sm ${getStatusColor(session.session_status)}`}
+      className={`p-5 rounded-lg cursor-pointer transition-all duration-300 border backdrop-blur-sm ${getStatusColor(!session.is_cancelled)}`}
     >
       <div className="space-y-4">
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 flex-1 min-w-0">
             <div className={`p-2.5 rounded-lg flex-shrink-0 ${
-              session.session_status === 'active' 
+              !session.is_cancelled
                 ? 'bg-emerald-900/40 text-emerald-400' 
-                : 'bg-blue-900/40 text-blue-400'
+                : 'bg-red-900/40 text-red-400'
             }`}>
               <BookOpen className="w-4 h-4" />
             </div>
@@ -165,8 +172,8 @@ export const LectureSessionCard: React.FC<LectureSessionCardProps> = ({
                 <Star className="w-4 h-4 text-amber-400 fill-amber-400 flex-shrink-0" />
               </div>
             )}
-            <Badge className={`text-xs whitespace-nowrap border ${getStatusColor(session.session_status)}`}>
-              {getStatusLabel(session.session_status)}
+            <Badge className={`text-xs whitespace-nowrap border ${getStatusColor(!session.is_cancelled)}`}>
+              {session.is_cancelled ? 'Cancelled' : session.is_special_class ? 'Special Class' : 'Active'}
             </Badge>
           </div>
         </div>
@@ -204,12 +211,12 @@ export const LectureSessionCard: React.FC<LectureSessionCardProps> = ({
                 <div className="space-y-2 mt-2">
                   {instructors.map((inst: any, idx: number) => (
                     <div key={inst.id || idx} className="flex items-center gap-2">
-                      {(inst as any).instructor_code && (
+                      {(inst as any).code && (
                         <span className="text-xs font-mono bg-emerald-900/40 text-emerald-300 px-2 py-1 rounded border border-emerald-700/50">
-                          {(inst as any).instructor_code}
+                          {(inst as any).code}
                         </span>
                       )}
-                      <span className="font-semibold text-slate-100">{inst.full_name}</span>
+                      <span className="font-semibold text-slate-100">{inst.name || inst.full_name}</span>
                     </div>
                   ))}
                 </div>

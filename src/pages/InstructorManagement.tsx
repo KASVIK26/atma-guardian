@@ -13,12 +13,13 @@ import { withAuth } from '../lib/withAuth';
 
 interface Instructor {
   id: string;
-  instructor_code: string;
-  full_name: string;
+  code: string;
+  name: string;
   email: string;
   phone: string;
   department: string;
-  qualifications: string;
+  bio: string;
+  profile_picture_url?: string;
   is_active: boolean;
   created_at: string;
 }
@@ -29,13 +30,14 @@ function InstructorManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingInstructor, setEditingInstructor] = useState<Instructor | null>(null);
+  const [universityId, setUniversityId] = useState<string>('');
   const [formData, setFormData] = useState({
-    instructor_code: '',
-    full_name: '',
+    code: '',
+    name: '',
     email: '',
     phone: '',
     department: '',
-    qualifications: '',
+    bio: '',
     is_active: true
   });
 
@@ -49,10 +51,26 @@ function InstructorManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
   const fetchInstructors = async () => {
     try {
       setLoading(true);
+      
+      // First, get the current user's university_id
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('university_id')
+        .single();
+
+      if (userError) throw userError;
+      
+      const univId = userData?.university_id;
+      if (!univId) throw new Error('University ID not found');
+      
+      setUniversityId(univId);
+
+      // Now fetch instructors for this university
       const { data, error } = await supabase
         .from('instructors')
-        .select('*')
-        .order('instructor_code');
+        .select('id, code, name, email, phone, department, bio, profile_picture_url, is_active, created_at')
+        .eq('university_id', univId)
+        .order('code', { ascending: true });
       
       if (error) throw error;
       setInstructors(data || []);
@@ -68,23 +86,23 @@ function InstructorManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
     if (instructor) {
       setEditingInstructor(instructor);
       setFormData({
-        instructor_code: instructor.instructor_code,
-        full_name: instructor.full_name,
+        code: instructor.code,
+        name: instructor.name,
         email: instructor.email,
         phone: instructor.phone,
         department: instructor.department,
-        qualifications: instructor.qualifications,
+        bio: instructor.bio,
         is_active: instructor.is_active
       });
     } else {
       setEditingInstructor(null);
       setFormData({
-        instructor_code: '',
-        full_name: '',
+        code: '',
+        name: '',
         email: '',
         phone: '',
         department: '',
-        qualifications: '',
+        bio: '',
         is_active: true
       });
     }
@@ -95,12 +113,12 @@ function InstructorManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
     setIsDialogOpen(false);
     setEditingInstructor(null);
     setFormData({
-      instructor_code: '',
-      full_name: '',
+      code: '',
+      name: '',
       email: '',
       phone: '',
       department: '',
-      qualifications: '',
+      bio: '',
       is_active: true
     });
   };
@@ -109,23 +127,29 @@ function InstructorManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
     e.preventDefault();
     
     try {
+      if (!universityId) {
+        toast.error('University ID not set');
+        return;
+      }
+
       const dataToSave = {
-        instructor_code: formData.instructor_code,
-        full_name: formData.full_name,
+        code: formData.code,
+        name: formData.name,
         email: formData.email,
         phone: formData.phone,
         department: formData.department,
-        qualifications: formData.qualifications,
+        bio: formData.bio,
         is_active: formData.is_active
       };
 
       console.log('Instructor form submission:', {
         isEditing: !!editingInstructor,
-        payload: dataToSave
+        payload: dataToSave,
+        universityId
       });
 
       if (editingInstructor) {
-        // Update existing instructor
+        // Update existing instructor (don't include university_id in update)
         console.log('Sending UPDATE request for instructor:', editingInstructor.id);
         const { error, data } = await supabase
           .from('instructors')
@@ -136,11 +160,11 @@ function InstructorManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
         if (error) throw error;
         toast.success('Instructor updated successfully');
       } else {
-        // Create new instructor
+        // Create new instructor - include university_id
         console.log('Sending INSERT request for new instructor');
         const { error, data } = await supabase
           .from('instructors')
-          .insert([dataToSave]);
+          .insert([{ ...dataToSave, university_id: universityId }]);
         
         console.log('INSERT response:', { error, data });
         if (error) throw error;
@@ -181,8 +205,8 @@ function InstructorManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
   };
 
   const filteredInstructors = instructors.filter(instructor =>
-    instructor.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    instructor.instructor_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    instructor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    instructor.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
     instructor.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     instructor.department.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -254,8 +278,8 @@ function InstructorManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
                   ) : (
                     filteredInstructors.map((instructor) => (
                       <TableRow key={instructor.id}>
-                        <TableCell className="font-mono font-semibold">{instructor.instructor_code}</TableCell>
-                        <TableCell className="font-medium">{instructor.full_name}</TableCell>
+                        <TableCell className="font-mono font-semibold">{instructor.code}</TableCell>
+                        <TableCell className="font-medium">{instructor.name}</TableCell>
                         <TableCell className="text-sm">
                           <div className="flex items-center gap-1">
                             <Mail className="h-3 w-3" />
@@ -319,12 +343,12 @@ function InstructorManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">
-                    Instructor Code <span className="text-red-500">*</span>
+                    Code <span className="text-red-500">*</span>
                   </label>
                   <Input
                     required
-                    value={formData.instructor_code}
-                    onChange={(e) => setFormData({ ...formData, instructor_code: e.target.value.toUpperCase() })}
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                     placeholder="INSTR001"
                     maxLength={20}
                     className="border-border/50"
@@ -333,12 +357,12 @@ function InstructorManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
 
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">
-                    Full Name <span className="text-red-500">*</span>
+                    Name <span className="text-red-500">*</span>
                   </label>
                   <Input
                     required
-                    value={formData.full_name}
-                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Dr. John Doe"
                     className="border-border/50"
                   />
@@ -381,11 +405,11 @@ function InstructorManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-semibold">Qualifications</label>
+                <label className="text-sm font-semibold">Bio</label>
                 <textarea
-                  value={formData.qualifications}
-                  onChange={(e) => setFormData({ ...formData, qualifications: e.target.value })}
-                  placeholder="B.Tech, M.Tech, PhD..."
+                  value={formData.bio}
+                  onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                  placeholder="Brief bio or qualifications..."
                   className="w-full px-3 py-2 border border-border/50 rounded-md bg-background text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition"
                   rows={3}
                 />

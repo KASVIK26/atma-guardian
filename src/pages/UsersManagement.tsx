@@ -63,7 +63,7 @@ function UsersManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrentP
               </Card>
 
               {/* Students Card */}
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-primary/50 opacity-50">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-primary/50">
                 <CardHeader className="pb-4">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
@@ -77,10 +77,10 @@ function UsersManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrentP
                     Manage student accounts, enrollments, and academic records.
                   </p>
                   <Button 
-                    disabled
+                    onClick={() => navigate('/manage-students')}
                     className="w-full"
                   >
-                    Coming Soon
+                    Manage Students
                   </Button>
                 </CardContent>
               </Card>

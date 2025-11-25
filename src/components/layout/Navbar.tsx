@@ -43,7 +43,7 @@ export function Navbar({ showProfileMenu = false, transparent = false }: NavbarP
         // Remove .eq('id', ...) filter - let RLS policy handle it via auth.uid()
         supabase
           .from('users')
-          .select('full_name, email, profile_image_url')
+          .select('first_name, last_name, email, profile_picture_url')
           .single()
           .then(({ data: profileData, error }) => {
             if (error) {
@@ -143,16 +143,16 @@ export function Navbar({ showProfileMenu = false, transparent = false }: NavbarP
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src={profile?.avatar_url || "/avatar.png"} alt={profile?.full_name || user?.email || "User"} />
-                        <AvatarFallback>{profile?.full_name?.slice(0,2) || "U"}</AvatarFallback>
+                        <AvatarImage src={profile?.profile_picture_url || "/avatar.png"} alt={profile ? `${profile.first_name} ${profile.last_name}` : user?.email || "User"} />
+                        <AvatarFallback>{profile ? `${profile.first_name?.charAt(0) || ''}${profile.last_name?.charAt(0) || ''}` : "U"}</AvatarFallback>
                       </Avatar>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-56" align="end" forceMount>
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
-                        {profile?.full_name && (
-                          <p className="text-sm font-medium leading-none">{profile.full_name}</p>
+                        {profile?.first_name && (
+                          <p className="text-sm font-medium leading-none">{profile.first_name} {profile.last_name}</p>
                         )}
                         <p className="text-xs leading-none text-muted-foreground">
                           {profile?.email || user?.email || "No email"}

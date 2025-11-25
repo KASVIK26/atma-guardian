@@ -25,7 +25,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
         count: sessions.length,
         firstSession: sessions[0],
         hasTimetable: !!sessions[0].timetables,
-        hasScheduledTime: !!sessions[0].scheduled_start_time,
+        hasStartTime: !!sessions[0].start_time,
       });
     }
   }, [sessions]);
@@ -57,8 +57,8 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
 
     // Add sessions to their respective hours
     sessions.forEach(session => {
-      // Use scheduled_start_time from session, or fall back to timetable.start_time
-      const startTimeStr = session.scheduled_start_time || (session.timetables as any)?.start_time;
+      // Use start_time from session, or fall back to timetable.start_time
+      const startTimeStr = session.start_time || (session.timetables as any)?.start_time;
       
       if (!startTimeStr) {
         console.warn('Session missing start time:', session.id);
