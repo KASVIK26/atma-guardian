@@ -51,11 +51,17 @@ function LectureSessions({ sidebarOpen, setSidebarOpen, currentPage, setCurrentP
     const getCurrentUser = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (authUser) {
-        // Fetch user profile with university info - RLS handles filtering by auth.uid()
-        const { data: userData } = await supabase
+        // Fetch user profile with university info - Use limit(1) to handle RLS
+        const { data: userDataArray, error: userError } = await supabase
           .from('users')
           .select('*, universities(*)')
-          .single();
+          .eq('id', authUser.id)
+          .limit(1);
+        
+        const userData = userDataArray && userDataArray.length > 0 ? userDataArray[0] : null;
+        if (userError) {
+          console.error('Error fetching user profile:', userError);
+        }
         setUser(userData);
       }
     };

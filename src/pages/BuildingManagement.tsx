@@ -65,13 +65,15 @@ function BuildingManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurre
         return;
       }
 
-      const { data, error } = await supabase
+      const { data: userDataArray, error } = await supabase
         .from('users')
         .select('university_id')
-        .single();
+        .eq('id', user.id)
+        .limit(1);
 
-      if (!error && data && data.university_id) {
-        setCurrentUserUniversityId(data.university_id);
+      const userData = userDataArray && userDataArray.length > 0 ? userDataArray[0] : null;
+      if (!error && userData && userData.university_id) {
+        setCurrentUserUniversityId(userData.university_id);
       } else {
         console.error('Error fetching user university:', error);
       }

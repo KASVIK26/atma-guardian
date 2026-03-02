@@ -71,12 +71,13 @@ export const LectureSessionDetailModal: React.FC<LectureSessionDetailModalProps>
       console.log('📍 Session data:', session);
 
       // Fetch timetable data
-      const { data: timetable, error: ttError } = await supabase
+      const { data: timetableArray, error: ttError } = await supabase
         .from('timetables')
         .select('*')
         .eq('id', session.timetable_id)
-        .single();
+        .limit(1);
 
+      const timetable = timetableArray && timetableArray.length > 0 ? timetableArray[0] : null;
       if (ttError) {
         console.error('❌ Timetable fetch error:', ttError);
         throw ttError;
@@ -90,12 +91,13 @@ export const LectureSessionDetailModal: React.FC<LectureSessionDetailModalProps>
       // Fetch course details separately
       let courseDetail = null;
       if (timetable?.course_id) {
-        const { data: course, error: courseError } = await supabase
+        const { data: courseArray, error: courseError } = await supabase
           .from('courses')
           .select('*')
           .eq('id', timetable.course_id)
-          .single();
+          .limit(1);
         
+        const course = courseArray && courseArray.length > 0 ? courseArray[0] : null;
         if (courseError) {
           console.error('❌ Course fetch error:', courseError);
         } else {
@@ -109,12 +111,13 @@ export const LectureSessionDetailModal: React.FC<LectureSessionDetailModalProps>
       // Fetch room details separately
       let roomDetail = null;
       if (timetable?.room_id) {
-        const { data: room, error: roomError } = await supabase
+        const { data: roomArray, error: roomError } = await supabase
           .from('rooms')
           .select('*, buildings(*)')
           .eq('id', timetable.room_id)
-          .single();
+          .limit(1);
         
+        const room = roomArray && roomArray.length > 0 ? roomArray[0] : null;
         if (roomError) {
           console.error('❌ Room fetch error:', roomError);
         } else {

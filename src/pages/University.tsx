@@ -330,19 +330,18 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
     try {
       setLoading(true);
       const { data: user } = await supabase.auth.getUser();
-      console.log('[fetchData] Auth user:', user?.user?.id);
       
       if (user?.user) {
-        // Get user's university - RLS policy handles filtering by auth.uid()
-        const { data: userData } = await supabase
+        // Get user's university - Use limit(1) and handle as array due to RLS returning multiple rows
+        const { data: userDataArray, error: userError } = await supabase
           .from('users')
           .select('university_id')
-          .single();
+          .eq('id', user.user.id)
+          .limit(1);
 
-        console.log('[fetchData] User data:', userData);
+        const userData = userDataArray && userDataArray.length > 0 ? userDataArray[0] : null;
 
         if (userData?.university_id) {
-          console.log('[fetchData] Fetching for university:', userData.university_id);
           setUniversityId(userData.university_id);
           
           // Fetch university details
@@ -350,10 +349,9 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
             .from('universities')
             .select('*')
             .eq('id', userData.university_id)
-            .single();
+            .limit(1);
           
-          console.log('[fetchData] University data:', uniData, 'error:', uniError);
-          setUniversity(uniData);
+          setUniversity(uniData && uniData.length > 0 ? uniData[0] : null);
 
           // Fetch programs
           const { data: programsData, error: progError } = await supabase
@@ -362,7 +360,6 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
             .eq('university_id', userData.university_id)
             .order('created_at', { ascending: false });
 
-          console.log('[fetchData] Programs:', programsData?.length || 0, 'error:', progError);
           setPrograms(programsData || []);
 
           // Fetch branches (simplified query to avoid RLS/join issues)
@@ -372,7 +369,6 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
             .eq('university_id', userData.university_id)
             .order('created_at', { ascending: false });
 
-          console.log('[fetchData] Branches:', branchesData?.length || 0, 'error:', branchError);
           setBranches(branchesData || []);
 
           // Fetch semesters (not years - new schema uses semesters)
@@ -382,7 +378,6 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
             .eq('university_id', userData.university_id)
             .order('number', { ascending: true });
 
-          console.log('[fetchData] Semesters:', semestersData?.length || 0, 'error:', semError);
           setSemesters(semestersData || []);
           setYears(semestersData || []); // For backward compatibility with UI
 
@@ -406,15 +401,11 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
                 }
               });
               setSemesterHolidays(holidaysBySemsesterId);
-              console.log('[fetchData] Holidays:', Object.keys(holidaysBySemsesterId).length, 'semesters with holidays');
-            } else {
-              console.log('[fetchData] Holidays fetch error:', holidaysError);
             }
           }
 
           // Fetch courses through branches (courses don't have university_id directly)
           const branchIds = (branchesData || []).map(b => b.id);
-          console.log('[fetchData] Branch IDs for courses query:', branchIds);
           let coursesData = [];
           if (branchIds.length > 0) {
             const { data: coursesDataResult, error: coursesError } = await supabase
@@ -422,10 +413,7 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
               .select('*')
               .in('branch_id', branchIds)
               .order('code', { ascending: true });
-            console.log('[fetchData] Courses:', coursesDataResult?.length || 0, 'error:', coursesError);
             coursesData = coursesDataResult || [];
-          } else {
-            console.log('[fetchData] No branches found, skipping courses query');
           }
 
           setCourses(coursesData || []);
@@ -437,11 +425,9 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
             .from('sections')
             .select('*')
             .order('created_at', { ascending: false });
-          console.log('[fetchData] Sections:', sectionsDataResult?.length || 0, 'error:', sectionsError);
           sectionsData = sectionsDataResult || [];
 
           setSections(sectionsData || []);
-          console.log('[fetchData] Final - sections:', sectionsData?.length || 0, 'branches:', branchIds.length);
         }
       }
     } catch (error) {
@@ -467,21 +453,24 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
       const { data: user } = await supabase.auth.getUser();
       console.log('[Program Creation] Auth user:', user?.user?.id);
 
-      const { data: userData, error: userError } = await supabase
+      const { data: userDataArray, error: userError } = await supabase
         .from('users')
         .select('university_id, role')
         .eq('id', user?.user?.id)
-        .single();
+        .limit(1);
 
+      const userData = userDataArray && userDataArray.length > 0 ? userDataArray[0] : null;
       console.log('[Program Creation] User data:', userData);
       console.log('[Program Creation] User role:', userData?.role);
 
       if (userError || !userData?.university_id) {
+        console.error('[Program Creation] ❌ Error:', userError, 'No university_id:', !userData?.university_id);
         throw new Error('Unable to fetch user university information');
       }
 
       // Check if user is admin
       if (userData.role !== 'admin') {
+        console.warn('[Program Creation] ⚠️ User is not admin. Role:', userData.role);
         toast.error('Only admin users can create programs');
         return;
       }
@@ -491,17 +480,17 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
         university_id: userData.university_id
       };
 
-      console.log('[Program Creation] Creating with payload:', payload);
+      console.log('[Program Creation] 📤 Creating with payload:', JSON.stringify(payload, null, 2));
 
       const { data, error } = await supabase
         .from('programs')
         .insert(payload)
         .select();
 
-      console.log('[Program Creation] Response:', { data, error });
+      console.log('[Program Creation] 📥 Response - Rows:', data?.length || 0, '| Error:', error);
 
       if (error) {
-        console.error('[Program Creation] Supabase error details:', {
+        console.error('[Program Creation] 🔴 Supabase error details:', {
           message: error.message,
           details: error.details,
           hint: error.hint,
@@ -510,6 +499,7 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
         throw error;
       }
 
+      console.log('[Program Creation] ✅ Success! Created:', data?.length || 0, 'programs');
       toast.success('Program created successfully');
       setDialogOpen(false);
       setProgramForm({ name: '', code: '', duration_years: 4, program_type: 'undergraduate' });
@@ -540,19 +530,22 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
       const { data: user } = await supabase.auth.getUser();
       console.log('[Branch Creation] Auth user:', user?.user?.id);
 
-      const { data: userData, error: userError } = await supabase
+      const { data: userDataArray, error: userError } = await supabase
         .from('users')
         .select('university_id, role')
         .eq('id', user?.user?.id)
-        .single();
+        .limit(1);
 
+      const userData = userDataArray && userDataArray.length > 0 ? userDataArray[0] : null;
       console.log('[Branch Creation] User data:', userData);
 
       if (userError || !userData?.university_id) {
+        console.error('[Branch Creation] ❌ Error:', userError, 'No university_id:', !userData?.university_id);
         throw new Error('Unable to fetch user university information');
       }
 
       if (userData.role !== 'admin') {
+        console.warn('[Branch Creation] ⚠️ User is not admin. Role:', userData.role);
         toast.error('Only admin users can create branches');
         return;
       }
@@ -562,17 +555,17 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
         university_id: userData.university_id
       };
 
-      console.log('[Branch Creation] Creating with payload:', payload);
+      console.log('[Branch Creation] 📤 Creating with payload:', JSON.stringify(payload, null, 2));
 
       const { data, error } = await supabase
         .from('branches')
         .insert(payload)
         .select();
 
-      console.log('[Branch Creation] Response:', { data, error });
+      console.log('[Branch Creation] 📥 Response - Rows:', data?.length || 0, '| Error:', error);
 
       if (error) {
-        console.error('[Branch Creation] Supabase error details:', {
+        console.error('[Branch Creation] 🔴 Supabase error details:', {
           message: error.message,
           details: error.details,
           hint: error.hint,
@@ -581,6 +574,7 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
         throw error;
       }
 
+      console.log('[Branch Creation] ✅ Success! Created:', data?.length || 0, 'branches');
       toast.success('Branch created successfully');
       setDialogOpen(false);
       setBranchForm({ program_id: '', name: '', code: '' });
@@ -610,12 +604,13 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
       const { data: user } = await supabase.auth.getUser();
       console.log('[Semester Creation] Auth user:', user?.user?.id);
 
-      const { data: userData, error: userError } = await supabase
+      const { data: userDataArray, error: userError } = await supabase
         .from('users')
         .select('id, university_id, role')
         .eq('id', user?.user?.id)
-        .single();
+        .limit(1);
 
+      const userData = userDataArray && userDataArray.length > 0 ? userDataArray[0] : null;
       console.log('[Semester Creation] User data:', userData);
 
       if (userError || !userData?.university_id) {
@@ -623,28 +618,33 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
       }
 
       if (userData.role !== 'admin') {
+        console.warn('[Semester] ⚠️ User is not admin. Role:', userData.role);
         toast.error('Only admin users can create/edit semesters');
         return;
       }
 
       // If editing, perform UPDATE, otherwise INSERT
       if (editingSemesterId) {
-        console.log('[Semester Update] Updating semester:', editingSemesterId);
+        console.log('[Semester Update] 🔄 Updating semester ID:', editingSemesterId);
+
+        const updatePayload = {
+          academic_year: semesterForm.academic_year,
+          number: semesterForm.number,
+          name: semesterForm.name,
+          start_date: semesterForm.start_date,
+          end_date: semesterForm.end_date,
+          updated_at: new Date().toISOString()
+        };
+
+        console.log('[Semester Update] 📤 Payload:', JSON.stringify(updatePayload, null, 2));
 
         const { error } = await supabase
           .from('semesters')
-          .update({
-            academic_year: semesterForm.academic_year,
-            number: semesterForm.number,
-            name: semesterForm.name,
-            start_date: semesterForm.start_date,
-            end_date: semesterForm.end_date,
-            updated_at: new Date().toISOString()
-          })
+          .update(updatePayload)
           .eq('id', editingSemesterId);
 
         if (error) {
-          console.error('[Semester Update] Supabase error details:', {
+          console.error('[Semester Update] 🔴 Supabase error details:', {
             message: error.message,
             details: error.details,
             hint: error.hint,
@@ -653,6 +653,7 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
           throw error;
         }
 
+        console.log('[Semester Update] ✅ Success!');
         toast.success('Semester updated successfully');
       } else {
         // Create new semester
@@ -666,17 +667,17 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
           end_date: semesterForm.end_date
         };
 
-        console.log('[Semester Creation] Creating with payload:', payload);
+        console.log('[Semester Creation] 📤 Creating with payload:', JSON.stringify(payload, null, 2));
 
         const { data, error } = await supabase
           .from('semesters')
           .insert(payload)
           .select();
 
-        console.log('[Semester Creation] Response:', { data, error });
+        console.log('[Semester Creation] 📥 Response - Rows:', data?.length || 0, '| Error:', error);
 
         if (error) {
-          console.error('[Semester Creation] Supabase error details:', {
+          console.error('[Semester Creation] 🔴 Supabase error details:', {
             message: error.message,
             details: error.details,
             hint: error.hint,
@@ -685,6 +686,7 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
           throw error;
         }
 
+        console.log('[Semester Creation] ✅ Success! Created:', data?.length || 0, 'semesters');
         toast.success('Semester created successfully');
       }
 
@@ -998,11 +1000,13 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
 
       console.log('Creating section with data:', sectionData);
 
-      const { data: newSection, error: sectionError } = await supabase
+      const { data: newSectionArray, error: sectionError } = await supabase
         .from('sections')
         .insert(sectionData)
         .select()
-        .single();
+        .limit(1);
+
+      const newSection = newSectionArray && newSectionArray.length > 0 ? newSectionArray[0] : null;
 
       if (sectionError) {
         console.error('Supabase Section Error:', {
@@ -1719,11 +1723,13 @@ function University({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, 
                                 if (!data || data.length === 0) {
                                   console.warn('Update returned no data - this is OK, update still succeeded');
                                   // If select didn't return data, fetch it separately to confirm
-                                  const { data: confirmData, error: confirmError } = await supabase
+                                  const { data: confirmDataArray, error: confirmError } = await supabase
                                     .from('universities')
                                     .select('*')
                                     .eq('id', university.id)
-                                    .single();
+                                    .limit(1);
+                                  
+                                  const confirmData = confirmDataArray && confirmDataArray.length > 0 ? confirmDataArray[0] : null;
                                   
                                   console.log('Confirmation fetch:', { confirmData, confirmError });
                                   console.log('Confirmation fetch - email field:', confirmData?.email);

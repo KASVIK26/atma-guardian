@@ -493,12 +493,13 @@ export const useFilterOptions = (options: UseFilterOptionsOptions) => {
   // New function to get semester details by ID
   const getSemesterById = useCallback(async (semesterId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data: dataArray, error } = await supabase
         .from('semesters')
         .select('id, name, number, academic_year, start_date, end_date')
         .eq('id', semesterId)
-        .single();
+        .limit(1);
 
+      const data = dataArray && dataArray.length > 0 ? dataArray[0] : null;
       if (!error && data) {
         return data;
       }

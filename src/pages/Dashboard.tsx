@@ -75,18 +75,24 @@ function Dashboard({ sidebarOpen, setSidebarOpen, currentPage, setCurrentPage, s
         supabase
           .from('users')
           .select('first_name, last_name, university_id')
-          .single()
+          .eq('id', data.user.id)
+          .limit(1)
           .then(({ data: profileData }) => {
-            setProfile(profileData);
-            if (profileData?.university_id) {
-              supabase
-                .from('universities')
-                .select('short_code')
-                .eq('id', profileData.university_id)
-                .single()
-                .then(({ data: uniData }) => {
-                  setUniversityCode(uniData?.short_code || '');
-                });
+            if (profileData && profileData.length > 0) {
+              const userProfile = profileData[0];
+              setProfile(userProfile);
+              if (userProfile?.university_id) {
+                supabase
+                  .from('universities')
+                  .select('short_code')
+                  .eq('id', userProfile.university_id)
+                  .limit(1)
+                  .then(({ data: uniData }) => {
+                    if (uniData && uniData.length > 0) {
+                      setUniversityCode(uniData[0].short_code || '');
+                    }
+                  });
+              }
             }
           });
       }

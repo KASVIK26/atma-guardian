@@ -40,16 +40,16 @@ export function Navbar({ showProfileMenu = false, transparent = false }: NavbarP
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user);
       if (data.user) {
-        // Remove .eq('id', ...) filter - let RLS policy handle it via auth.uid()
         supabase
           .from('users')
           .select('first_name, last_name, email, profile_picture_url')
-          .single()
+          .eq('id', data.user.id)
+          .limit(1)
           .then(({ data: profileData, error }) => {
             if (error) {
               console.error('Error fetching profile:', error);
-            } else {
-              setProfile(profileData);
+            } else if (profileData && profileData.length > 0) {
+              setProfile(profileData[0]);
             }
           });
       }

@@ -80,12 +80,14 @@ function CourseManagement({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
       
       if (!user) throw new Error('User not authenticated');
 
-      // Fetch user's university_id - RLS handles filtering by auth.uid()
-      const { data: userData, error: userError } = await supabase
+      // Fetch user's university_id - Use limit(1) to handle RLS
+      const { data: userDataArray, error: userError } = await supabase
         .from('users')
         .select('university_id')
-        .single();
+        .eq('id', user.id)
+        .limit(1);
 
+      const userData = userDataArray && userDataArray.length > 0 ? userDataArray[0] : null;
       if (userError) throw userError;
       
       const universityId = userData?.university_id;

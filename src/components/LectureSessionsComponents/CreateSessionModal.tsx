@@ -90,11 +90,12 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
         setFetching(true);
         const { data: { user: authUser } } = await supabase.auth.getUser();
         if (authUser) {
-          const { data } = await supabase
+          const { data: userDataArray } = await supabase
             .from('users')
             .select('university_id')
             .eq('id', authUser.id)
-            .single();
+            .limit(1);
+          const data = userDataArray && userDataArray.length > 0 ? userDataArray[0] : null;
           if (data) setUserData(data);
 
           // Fetch programs for the university
@@ -111,20 +112,21 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
               // Fetch timetable with all relationships if timetable_id exists
               let timetableData = editingSession.timetables as any;
               if (!timetableData && editingSession.timetable_id) {
-                const { data: tt } = await supabase
+                const { data: ttArray } = await supabase
                   .from('timetables')
                   .select('*, programs(*), branches(*), semesters(*), courses(*), rooms(*)')
                   .eq('id', editingSession.timetable_id)
-                  .single();
-                timetableData = tt;
+                  .limit(1);
+                timetableData = ttArray && ttArray.length > 0 ? ttArray[0] : null;
               }
 
               // Get section data for the session
-              const { data: sessionSection } = await supabase
+              const { data: sessionSectionArray } = await supabase
                 .from('sections')
                 .select('id, name, program_id, branch_id, semester_id')
                 .eq('id', editingSession.section_id)
-                .single();
+                .limit(1);
+              const sessionSection = sessionSectionArray && sessionSectionArray.length > 0 ? sessionSectionArray[0] : null;
 
               const timetableStartTime = timetableData?.start_time || editingSession.start_time || '09:00:00';
               const timetableEndTime = timetableData?.end_time || editingSession.end_time || '10:00:00';
@@ -168,11 +170,12 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
             }
           } else {
             // Fetch current section details for creation
-            const { data: sectionData } = await supabase
+            const { data: sectionDataArray } = await supabase
               .from('sections')
               .select('id, name, program_id, branch_id, semester_id')
               .eq('id', sectionId)
-              .single();
+              .limit(1);
+            const sectionData = sectionDataArray && sectionDataArray.length > 0 ? sectionDataArray[0] : null;
             if (sectionData) {
               setSelectedSectionData(sectionData);
               setFormData(prev => ({
@@ -444,12 +447,13 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
         is_cancelled: false,
       };
 
-      const { data: newSession, error: insertError } = await supabase
+      const { data: newSessionArray, error: insertError } = await supabase
         .from('lecture_sessions')
         .insert(payload)
         .select()
-        .single();
+        .limit(1);
 
+      const newSession = newSessionArray && newSessionArray.length > 0 ? newSessionArray[0] : null;
       if (insertError) throw insertError;
 
       console.log('✅ Lecture session created:', newSession?.id);

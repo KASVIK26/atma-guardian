@@ -54,7 +54,7 @@ function Profile() {
       if (userData.user) {
         setUser(userData.user);
         
-        const { data: profileData } = await supabase
+        const { data: profileDataArray } = await supabase
           .from('users')
           .select(`
             first_name,
@@ -68,7 +68,10 @@ function Profile() {
             university_id,
             universities(name)
           `)
-          .single();
+          .eq('id', userData.user.id)
+          .limit(1);
+
+        const profileData = profileDataArray && profileDataArray.length > 0 ? profileDataArray[0] : null;
 
         if (profileData) {
           const profileInfo = {
@@ -99,6 +102,9 @@ function Profile() {
   const handleSave = async () => {
     setLoading(true);
     try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error('User not authenticated');
+      
       const { error } = await supabase
         .from('users')
         .update({
@@ -106,7 +112,8 @@ function Profile() {
           last_name: editProfile.last_name,
           phone: editProfile.phone,
           profile_picture_url: editProfile.profile_picture_url
-        });
+        })
+        .eq('id', userData.user.id);
 
       if (error) throw error;
 

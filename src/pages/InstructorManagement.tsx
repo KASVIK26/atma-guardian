@@ -53,11 +53,14 @@ function InstructorManagement({ sidebarOpen, setSidebarOpen, currentPage, setCur
       setLoading(true);
       
       // First, get the current user's university_id
-      const { data: userData, error: userError } = await supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: userDataArray, error: userError } = await supabase
         .from('users')
         .select('university_id')
-        .single();
+        .eq('id', user?.id)
+        .limit(1);
 
+      const userData = userDataArray && userDataArray.length > 0 ? userDataArray[0] : null;
       if (userError) throw userError;
       
       const univId = userData?.university_id;

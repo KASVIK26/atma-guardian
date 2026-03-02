@@ -123,10 +123,13 @@ function AcademicCalendar({ sidebarOpen, setSidebarOpen, currentPage, setCurrent
   const fetchUniversityAndYears = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const { data: userData } = await supabase
+      const { data: userDataArray } = await supabase
         .from('users')
         .select('university_id')
-        .single();
+        .eq('id', user?.id)
+        .limit(1);
+
+      const userData = userDataArray && userDataArray.length > 0 ? userDataArray[0] : null;
 
       if (userData) {
         setUniversityId(userData.university_id);
