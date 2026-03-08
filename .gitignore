@@ -28,4 +28,6 @@ dist-ssr
 # Ignore markdown and SQL files
 *.md
 *.sql
+FRESH_SCHEMA*/
+*.py
 
